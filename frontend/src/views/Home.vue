@@ -1,5 +1,5 @@
 <template>
-  <div class="tw-mx-auto tw-mb-12 tw-mt-4 tw-max-w-6xl tw-space-y-4 sm:tw-mt-7">
+  <div class="tw-mx-auto tw-mb-12 tw-mt-4 tw-max-w-6xl tw-space-y-4 tw-px-4 sm:tw-mt-7">
     <div
       v-if="loading && !eventsNotEmpty"
       class="tw-flex tw-h-[calc(100vh-10rem)] tw-w-full tw-items-center tw-justify-center"
@@ -58,7 +58,7 @@ export default {
   name: "Home",
 
   metaInfo: {
-    title: "Home - Schej",
+    title: "Home Dashboard - Schej",
   },
 
   components: {

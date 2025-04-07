@@ -1,7 +1,7 @@
 <template>
   <v-img
     :alt="alt"
-    class="shrink tw-cursor-pointer"
+    class="shrink tw-cursor-pointer hover-effect"
     contain
     :src="src"
     transition="scale-transition"
@@ -56,3 +56,12 @@ export default {
   },
 }
 </script>
+
+<style scoped>
+.hover-effect {
+  transition: transform 0.2s ease-in-out;
+}
+.hover-effect:hover {
+  transform: scale(1.05);
+}
+</style>

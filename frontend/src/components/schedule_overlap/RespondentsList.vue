@@ -1,6 +1,6 @@
 <template>
   <div>
-    <div class="tw-flex tw-items-center tw-font-medium">
+    <div class="tw-flex tw-items-center tw-font-medium tw-mb-2">
       <template v-if="!isOwner && event.blindAvailabilityEnabled">
         Your response
       </template>
@@ -273,24 +273,73 @@
             </div>
           </template>
         </v-switch>
-        <EventOptions
-          :event="event"
-          :showEventOptions="showEventOptions"
-          @toggleShowEventOptions="$emit('toggleShowEventOptions')"
-          :showBestTimes="showBestTimes"
-          @update:showBestTimes="(val) => $emit('update:showBestTimes', val)"
-          :hideIfNeeded="hideIfNeeded"
-          @update:hideIfNeeded="(val) => $emit('update:hideIfNeeded', val)"
-          :showCalendarEvents="showCalendarEvents"
-          @update:showCalendarEvents="
-            (val) => $emit('update:showCalendarEvents', val)
-          "
-          :startCalendarOnMonday="startCalendarOnMonday"
-          @update:startCalendarOnMonday="
-            (val) => $emit('update:startCalendarOnMonday', val)
-          "
-          :numResponses="respondents.length"
-        />
+        
+        <v-switch
+          v-if="respondents.length >= 1 && !isGroup"
+          class="tw-mb-4"
+          inset
+          id="hide-if-needed-toggle"
+          :input-value="hideIfNeeded"
+          @change="(val) => $emit('update:hideIfNeeded', !!val)"
+          hide-details
+        >
+          <template v-slot:label>
+            <div class="tw-text-sm tw-text-black">
+              Hide if needed {{ event.daysOnly ? "days" : "times" }}
+            </div>
+          </template>
+        </v-switch>
+        
+        <v-switch
+          v-if="showCalendarEvents !== undefined && isGroup && !isPhone"
+          class="tw-mb-4"
+          inset
+          :input-value="showCalendarEvents"
+          @change="(val) => $emit('update:showCalendarEvents', Boolean(val))"
+          hide-details
+        >
+          <template v-slot:label>
+            <div class="tw-text-sm tw-text-black">Overlay calendar events</div>
+          </template>
+        </v-switch>
+        
+        <!-- Start on monday -->
+        <v-switch
+          v-if="event.daysOnly"
+          class="tw-mb-4"
+          inset
+          id="start-calendar-on-monday-toggle"
+          :input-value="startCalendarOnMonday"
+          @change="(val) => $emit('update:startCalendarOnMonday', !!val)"
+          hide-details
+        >
+          <template v-slot:label>
+            <div class="tw-text-sm tw-text-black">Start on Monday</div>
+          </template>
+        </v-switch>
+        
+        <!-- Suggest Time Button -->
+        <v-btn
+          v-if="!event.daysOnly && respondents.length > 1"
+          color="primary"
+          class="tw-mb-4 tw-w-full"
+          @click="suggestTimeDialog = true"
+        >
+          <v-icon left>mdi-magic-staff</v-icon>
+          Suggest a time
+        </v-btn>
+
+        <!-- Suggest Time Dialog -->
+        <v-dialog v-model="suggestTimeDialog" max-width="600">
+          <SuggestTime
+            v-if="suggestTimeDialog && !event.daysOnly && respondents.length > 1"
+            :event="event"
+            :responses="responses"
+            :responses-formatted="responsesFormatted"
+            @select-time="$emit('select-time', $event)"
+            @close="suggestTimeDialog = false"
+          />
+        </v-dialog>
       </template>
     </div>
 
@@ -328,20 +377,6 @@
       </v-card>
     </v-dialog>
 
-    <v-switch
-      v-if="isGroup && isPhone"
-      :class="maxHeight && 'tw-mt-2'"
-      class="tw-mb-4"
-      inset
-      :input-value="showCalendarEvents"
-      @change="(val) => $emit('update:showCalendarEvents', Boolean(val))"
-      hide-details
-    >
-      <template v-slot:label>
-        <div class="tw-text-sm tw-text-black">Overlay calendar events</div>
-      </template>
-    </v-switch>
-
     <v-btn
       v-if="
         !maxHeight &&
@@ -378,17 +413,24 @@
 import { _delete, getLocale, isPhone } from "@/utils"
 import UserAvatarContent from "../UserAvatarContent.vue"
 import { mapState, mapActions } from "vuex"
-import EventOptions from "./EventOptions.vue"
 import OverflowGradient from "@/components/OverflowGradient.vue"
+import SuggestTime from "./SuggestTime.vue"
 
 export default {
   name: "RespondentsList",
 
-  components: { UserAvatarContent, EventOptions, OverflowGradient },
+  components: { UserAvatarContent, OverflowGradient, SuggestTime },
 
   props: {
     eventId: { type: String, required: true },
-    event: { type: Object, required: true },
+    event: {
+      type: Object,
+      required: true,
+    },
+    states: {
+      type: Object,
+      required: true,
+    },
     days: { type: Array, required: true },
     times: { type: Array, required: true },
     curDate: { type: Date, required: false }, // Date of the current timeslot
@@ -403,6 +445,7 @@ export default {
     isGroup: { type: Boolean, required: true },
     attendees: { type: Array, default: () => [] },
     showCalendarEvents: { type: Boolean, required: true },
+    responses: { type: Object, required: true },
     responsesFormatted: { type: Map, required: true },
     timezone: { type: Object, required: true },
     showBestTimes: { type: Boolean, required: true },
@@ -436,6 +479,7 @@ export default {
       curRespondentsAddedTime: {}, // Map of respondent id to time they were added
 
       hasMounted: false,
+      suggestTimeDialog: false,
     }
   },
 

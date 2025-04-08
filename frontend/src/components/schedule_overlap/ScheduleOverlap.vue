@@ -89,11 +89,14 @@
                 :allow-schedule-event="allowScheduleEvent"
                 :show-event-options="showEventOptions"
                 :time-type.sync="timeType"
+                :parsed-responses="parsedResponses"
+                :responses-formatted="responsesFormatted"
                 @toggleShowEventOptions="toggleShowEventOptions"
                 @update:weekOffset="(val) => $emit('update:weekOffset', val)"
                 @scheduleEvent="scheduleEvent"
                 @cancelScheduleEvent="cancelScheduleEvent"
                 @confirmScheduleEvent="confirmScheduleEvent"
+                @select-time="handleSuggestedTime"
               />
             </div>
           </template>
@@ -437,11 +440,14 @@
                 :allow-schedule-event="allowScheduleEvent"
                 :show-event-options="showEventOptions"
                 :time-type.sync="timeType"
+                :parsed-responses="parsedResponses"
+                :responses-formatted="responsesFormatted"
                 @toggleShowEventOptions="toggleShowEventOptions"
                 @update:weekOffset="(val) => $emit('update:weekOffset', val)"
                 @scheduleEvent="scheduleEvent"
                 @cancelScheduleEvent="cancelScheduleEvent"
                 @confirmScheduleEvent="confirmScheduleEvent"
+                @select-time="handleSuggestedTime"
               />
             </div>
 
@@ -839,6 +845,7 @@
         </v-expand-transition>
       </div>
     </div>
+    
   </span>
 </template>
 
@@ -917,6 +924,7 @@ import utcPlugin from "dayjs/plugin/utc"
 import timezonePlugin from "dayjs/plugin/timezone"
 import AvailabilityTypeToggle from "./AvailabilityTypeToggle.vue"
 import BufferTimeSwitch from "./BufferTimeSwitch.vue"
+import SuggestTime from "./SuggestTime.vue"
 dayjs.extend(utcPlugin)
 dayjs.extend(timezonePlugin)
 
@@ -1070,6 +1078,7 @@ export default {
         "nov",
         "dec",
       ],
+      suggestTimeDialog: false,
     }
   },
   computed: {
@@ -1846,6 +1855,28 @@ export default {
   methods: {
     ...mapMutations(["setAuthUser"]),
     ...mapActions(["showInfo", "showError"]),
+
+    handleSuggestedTime(timestamp) {
+      const date = new Date(parseInt(timestamp))
+      
+      // If we're in scheduling mode, set the scheduled time
+      if (this.scheduling) {
+        this.curScheduledEvent = {
+          startDate: date,
+          hoursOffset: date.getHours() - this.event.startTime,
+          hoursLength: this.event.duration
+        }
+      } else {
+        // Otherwise, highlight the suggested time slot
+        this.showAvailability(
+          Math.floor((date.getHours() - this.event.startTime) * 4),
+          this.days.findIndex(d => 
+            d.dateObject.getDate() === date.getDate() && 
+            d.dateObject.getMonth() === date.getMonth()
+          )
+        )
+      }
+    },
 
     // -----------------------------------
     //#region Date
@@ -3580,6 +3611,9 @@ export default {
         this.setAvailabilityAutomatically()
       }
     },
+    showSuggestTimeDialog() {
+      this.suggestTimeDialog = true;
+    },
   },
   watch: {
     availability() {
@@ -3765,6 +3799,7 @@ export default {
     SignUpBlock,
     SignUpCalendarBlock,
     SignUpBlocksList,
+    SuggestTime,
   },
 }
 </script>

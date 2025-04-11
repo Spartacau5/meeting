@@ -58,7 +58,7 @@ export default {
   name: "Home",
 
   metaInfo: {
-    title: "Home Dashboard - Schej",
+    title: "Home Dashboard - Gatherly",
   },
 
   components: {

@@ -1,143 +1,45 @@
-<template></template>
+<template>
+  <div class="auth-loading">
+    <p>Authenticating, please wait...</p>
+  </div>
+</template>
 
 <script>
-import { get, post } from "@/utils"
-import { mapMutations } from "vuex"
-import { authTypes, calendarTypes } from "@/constants"
+import { post } from "@/utils"
 
 export default {
   name: "Auth",
-
-  methods: {
-    ...mapMutations(["setAuthUser"]),
-  },
-
-  async created() {
-    let { error, code, scope, state } = this.$route.query
-    if (error) this.$router.replace({ name: "home" })
-
-    if (state) state = JSON.parse(decodeURIComponent(state))
-
-    // Sign in and set auth user
+  async mounted() {
     try {
-      if (
-        state?.type === authTypes.ADD_CALENDAR_ACCOUNT ||
-        state?.type === authTypes.ADD_CALENDAR_ACCOUNT_FROM_EDIT
-      ) {
-        if (state.calendarType === calendarTypes.GOOGLE) {
-          await post("/user/add-google-calendar-account", { code, scope })
-        } else if (state.calendarType === calendarTypes.OUTLOOK) {
-          await post("/user/add-outlook-calendar-account", {
-            code,
-            scope: state.scope,
-          })
-        } else {
-          throw new Error("Invalid calendar type")
-        }
-      } else {
-        const user = await post("/auth/sign-in", {
-          code,
-          scope: scope ?? state.scope,
-          calendarType: state.calendarType,
-          timezoneOffset: new Date().getTimezoneOffset(),
-        })
-        
-        this.setAuthUser(user)
+      // Extract the code and state from the URL
+      const urlParams = new URLSearchParams(window.location.search)
+      const code = urlParams.get("code")
+      const state = urlParams.get("state")
 
-        this.$posthog?.identify(user._id, {
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-        })
+      if (!code) {
+        throw new Error("Missing authorization code")
       }
 
-      // Redirect to the correct place based on "state", otherwise, just redirect to home
-      if (state) {
-        let authUser
-        switch (state.type) {
-          case authTypes.EVENT_ADD_AVAILABILITY:
-            this.$router.replace({
-              name: "event",
-              params: { eventId: state.eventId, fromSignIn: true },
-            })
-            break
-          case authTypes.EVENT_SIGN_IN:
-            this.$router.replace({
-              name: "event",
-              params: { eventId: state.eventId },
-            })
-            break
-          case authTypes.EVENT_SIGN_IN_LINK_APPLE:
-            this.$router.replace({
-              name: "event",
-              params: { eventId: state.eventId, linkApple: true },
-            })
-            break
-          case authTypes.GROUP_CREATE:
-            this.$router.replace({
-              name: "home",
-              params: {
-                openNewGroup: true,
-              },
-            })
-            break
-          case authTypes.GROUP_SIGN_IN:
-            this.$router.replace({
-              name: "group",
-              params: { groupId: state.groupId },
-            })
-            break
-          case authTypes.GROUP_ADD_AVAILABILITY:
-            this.$router.replace({
-              name: "group",
-              params: { groupId: state.eventId, fromSignIn: true },
-            })
-            authUser = await get("/user/profile")
-            this.setAuthUser(authUser)
-            break
-          case authTypes.ADD_CALENDAR_ACCOUNT:
-            this.$router.replace({
-              name: "settings",
-            })
-            authUser = await get("/user/profile")
-            this.setAuthUser(authUser)
-            break
-          case authTypes.ADD_CALENDAR_ACCOUNT_FROM_EDIT:
-            this.$router.replace({
-              name: "event",
-              params: { eventId: state.eventId, fromSignIn: true },
-            })
-            authUser = await get("/user/profile")
-            this.setAuthUser(authUser)
-            break
-          case authTypes.EVENT_CONTACTS:
-            if (state.eventId == "") {
-              this.$router.replace({
-                name: "home",
-                params: {
-                  contactsPayload: state.payload,
-                  openNewGroup: state.openNewGroup,
-                },
-              })
-            } else {
-              this.$router.replace({
-                name: "event",
-                params: {
-                  eventId: state.eventId,
-                  contactsPayload: state.payload,
-                },
-              })
-            }
-            break
-          default:
-            this.$router.replace({ name: "home" })
-        }
-      } else {
-        this.$router.replace({ name: "home" })
-      }
-    } catch (err) {
-      console.error(err)
+      // Exchange the code for a token/session on your backend
+      await post("/auth/google/callback", { code, state })
+
+      // ✅ Success! Redirect to /home
+      this.$router.replace({ name: "home" })
+    } catch (error) {
+      console.error("Authentication failed:", error)
+      // ⛔ If anything goes wrong, redirect to landing page
+      this.$router.replace({ name: "landing" })
     }
-  },
+  }
 }
 </script>
+
+<style scoped>
+.auth-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  font-size: 18px;
+}
+</style>

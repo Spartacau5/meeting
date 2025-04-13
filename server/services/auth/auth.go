@@ -35,15 +35,24 @@ func GetTokensFromAuthCode(code string, scope string, origin string, calendarTyp
 	clientId, clientSecret := getCredentialsFromCalendarType(calendarType)
 	tokenEndpoint := getTokenEndpointFromCalendarType(calendarType)
 
+	// If scope is empty, use a default scope for Google OAuth
+	if scope == "" && calendarType == models.GoogleCalendarType {
+		scope = "openid email profile"
+	}
+
 	// Call Google oauth token endpoint
 	redirectUri := fmt.Sprintf("%s/auth", origin)
 	values := url.Values{
 		"client_id":     {clientId},
 		"client_secret": {clientSecret},
 		"code":          {code},
-		"scope":         {scope},
 		"redirect_uri":  {redirectUri},
 		"grant_type":    {"authorization_code"},
+	}
+	
+	// Only add scope if it's not empty
+	if scope != "" {
+		values.Add("scope", scope)
 	}
 
 	logger.StdOut.Printf("Making token exchange request to %s with redirect_uri=%s", tokenEndpoint, redirectUri)

@@ -72,21 +72,40 @@ const router = new VueRouter({
 router.beforeEach(async (to, from, next) => {
   const authRoutes = ["home", "settings"]
   const noAuthRoutes = ["landing"]
-  try {
-    await get("/auth/status")
+  const publicRoutes = ["landing", "auth", "privacy-policy", "404"]
 
+  try {
+    await get("/auth/status") // means user is logged in
+
+    // Don't redirect if already going to "home"
     if (noAuthRoutes.includes(to.name)) {
-      next({ name: "home" })
+      if (to.name !== "home") {
+        next({ name: "home" })
+      } else {
+        next()
+      }
     } else {
       next()
     }
   } catch (err) {
-    if (authRoutes.includes(to.name)) {
-      next({ name: "landing" })
+    // Not authenticated
+
+    // Allow public routes
+    if (publicRoutes.includes(to.name)) {
+      next()
+    }
+    // Redirect away from protected routes
+    else if (authRoutes.includes(to.name)) {
+      if (to.name !== "landing") {
+        next({ name: "landing" })
+      } else {
+        next()
+      }
     } else {
       next()
     }
   }
 })
+
 
 export default router

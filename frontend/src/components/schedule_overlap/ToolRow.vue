@@ -63,6 +63,9 @@
               (val) => $emit('update:startCalendarOnMonday', val)
             "
             :numResponses="numResponses"
+            :responses="parsedResponses"
+            :responses-formatted="responsesFormatted"
+            @select-time="$emit('select-time', $event)"
           />
         </template>
         <template
@@ -170,6 +173,8 @@ export default {
     allowScheduleEvent: { type: Boolean, required: true },
     showEventOptions: { type: Boolean, required: true },
     timeType: { type: String, required: true },
+    parsedResponses: { type: Object, required: true },
+    responsesFormatted: { type: Map, required: true },
   },
 
   components: {

@@ -209,27 +209,28 @@ func UpdateDailyUserLog(user *models.User) {
 func GenerateShortEventId(eventId primitive.ObjectID) string {
 	r := rand.New(rand.NewSource(eventId.Timestamp().Unix()))
 
-	id := ""
+	// Only uppercase letters, excluding I and O to avoid confusion
+	letters := "ABCDEFGHJKLMNPQRSTUVWXYZ"
 
-	letters := "23456789ABCDEFabcdef"
-	for i := 0; i < 5; i++ {
-		index := r.Intn(len(letters))
-		letter := letters[index : index+1]
-		id += letter
+	generateCode := func() string {
+		code := ""
+		for i := 0; i < 4; i++ {
+			index := r.Intn(len(letters))
+			code += letters[index : index+1]
+		}
+		return code
 	}
 
-	i := 0
-	event := GetEventByShortId(id)
-	for event != nil && i < 5 {
-		// Event exists, keep on adding letters until event doesn't exist anymore, max of 5 more letters
-		index := r.Intn(len(letters))
-		letter := letters[index : index+1]
-		id += letter
-		event = GetEventByShortId(id)
-		i++
+	id := generateCode()
+	attempts := 0
+	
+	// Try to generate a unique code up to 5 times
+	for GetEventByShortId(id) != nil && attempts < 5 {
+		id = generateCode()
+		attempts++
 	}
 
-	if event != nil {
+	if GetEventByShortId(id) != nil {
 		logger.StdErr.Panicln("Couldn't generate unique id")
 	}
 

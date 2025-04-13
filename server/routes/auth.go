@@ -23,6 +23,15 @@ import (
 	"schej.it/server/utils"
 )
 
+// SignInRequest represents the payload for the sign-in endpoint
+type SignInRequest struct {
+	Code           string              `json:"code" binding:"required"`
+	Scope          string              `json:"scope" binding:"required"`
+	CalendarType   models.CalendarType `json:"calendarType" binding:"required"`
+	TimezoneOffset int                 `json:"timezoneOffset" binding:"required"`
+	Origin         string              `json:"origin"`
+}
+
 func InitAuth(router *gin.RouterGroup) {
 	authRouter := router.Group("/auth")
 
@@ -32,28 +41,37 @@ func InitAuth(router *gin.RouterGroup) {
 	authRouter.GET("/status", middleware.AuthRequired(), getStatus)
 }
 
-// @Summary Signs user in
-// @Description Signs user in and sets the access token session variable
+// @Summary Sign in a user
+// @Description Authenticates a user with Google Calendar
 // @Tags auth
 // @Accept json
 // @Produce json
-// @Param payload body object{code=string,scope=string,calendarType=string,timezoneOffset=int} true "Object containing the Google authorization code, scope, calendar type, and the user's timezone offset"
-// @Success 200
+// @Param request body SignInRequest true "Sign-in request"
+// @Success 200 {object} models.User
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
 // @Router /auth/sign-in [post]
 func signIn(c *gin.Context) {
-	payload := struct {
-		Code           string              `json:"code" binding:"required"`
-		Scope          string              `json:"scope" binding:"required"`
-		CalendarType   models.CalendarType `json:"calendarType" binding:"required"`
-		TimezoneOffset *int                `json:"timezoneOffset" binding:"required"`
-	}{}
-	if err := c.BindJSON(&payload); err != nil {
+	var req SignInRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	tokens := auth.GetTokensFromAuthCode(payload.Code, payload.Scope, utils.GetOrigin(c), payload.CalendarType)
+	// If origin is not provided, get it from the request
+	if req.Origin == "" {
+		req.Origin = utils.GetOrigin(c)
+	}
 
-	user := signInHelper(c, tokens, models.WEB, payload.CalendarType, *payload.TimezoneOffset)
+	// Get tokens from auth code
+	tokens, err := auth.GetTokensFromAuthCode(req.Code, req.Scope, req.Origin, req.CalendarType)
+	if err != nil {
+		logger.StdErr.Printf("Failed to exchange auth code: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to authenticate with Google"})
+		return
+	}
+
+	user := signInHelper(c, tokens, models.WEB, req.CalendarType, req.TimezoneOffset)
 
 	c.JSON(http.StatusOK, user)
 }
@@ -99,33 +117,48 @@ func signInMobile(c *gin.Context) {
 }
 
 // Helper function to sign user in with the given parameters from the google oauth route
-func signInHelper(c *gin.Context, token auth.TokenResponse, tokenOrigin models.TokenOriginType, calendarType models.CalendarType, timezoneOffset int) models.User {
+func signInHelper(c *gin.Context, tokens auth.TokenResponse, tokenOrigin models.TokenOriginType, calendarType models.CalendarType, timezoneOffset int) models.User {
+	// Get user info
+	userInfo, err := auth.GetUserInfo(tokens.AccessToken)
+	if err != nil {
+		logger.StdErr.Printf("Failed to get user info: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user info"})
+		c.Abort()
+		return models.User{}
+	}
+
 	// Get access token expire time
-	accessTokenExpireDate := utils.GetAccessTokenExpireDate(token.ExpiresIn)
+	accessTokenExpireDate := utils.GetAccessTokenExpireDate(tokens.ExpiresIn)
 
 	// Construct calendar auth object
 	calendarAuth := models.OAuth2CalendarAuth{
-		AccessToken:           token.AccessToken,
+		AccessToken:           tokens.AccessToken,
 		AccessTokenExpireDate: primitive.NewDateTimeFromTime(accessTokenExpireDate),
-		RefreshToken:          token.RefreshToken,
-		Scope:                 token.Scope,
+		RefreshToken:          tokens.RefreshToken,
+		Scope:                 tokens.Scope,
 	}
 
 	var email, firstName, lastName, picture string
 	if calendarType == models.GoogleCalendarType {
 		// Get user info from JWT
-		claims := utils.ParseJWT(token.IdToken)
+		claims := utils.ParseJWT(tokens.IdToken)
 		email, _ = claims.GetStr("email")
 		firstName, _ = claims.GetStr("given_name")
 		lastName, _ = claims.GetStr("family_name")
 		picture, _ = claims.GetStr("picture")
 	} else if calendarType == models.OutlookCalendarType {
 		// Get user info from microsoft graph
-		userInfo := microsoftgraph.GetUserInfo(nil, &calendarAuth)
-		email = userInfo.Email
-		firstName = userInfo.FirstName
-		lastName = userInfo.LastName
+		msUserInfo := microsoftgraph.GetUserInfo(nil, &calendarAuth)
+		email = msUserInfo.Email
+		firstName = msUserInfo.FirstName
+		lastName = msUserInfo.LastName
 		picture = ""
+	} else {
+		// Use the userInfo from GetUserInfo for other calendar types
+		email = userInfo.Email
+		firstName = userInfo.GivenName
+		lastName = userInfo.FamilyName
+		picture = userInfo.Picture
 	}
 
 	primaryAccountKey := utils.GetCalendarAccountKey(email, calendarType)

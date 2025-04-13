@@ -1,0 +1,23 @@
+{
+  "name": "gatherly",
+  "version": "1.0.0",
+  "description": "Gatherly helps you quickly find the best time for your group to meet. It's like When2meet with Google Calendar integration!",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Gatherly-Team/gatherly.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Gatherly-Team/gatherly/issues"
+  },
+  "homepage": "https://github.com/Gatherly-Team/gatherly#readme",
+  "dependencies": {
+    "serve": "^14.2.4"
+  }
+}

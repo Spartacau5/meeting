@@ -54,7 +54,7 @@
           color="primary"
           class="tw-mx-2 tw-rounded-md"
           :style="{
-            boxShadow: '0px 2px 8px 0px #00994C80 !important',
+            boxShadow: '0px 2px 8px 0px rgba(59, 130, 246, 0.5) !important',
           }"
           @click="() => createNew()"
         >
@@ -134,12 +134,12 @@ html {
 }
 
 .v-btn.v-btn--is-elevated.primary,
-.v-btn.v-btn--is-elevated.tw-bg-green,
-.v-btn.v-btn--is-elevated.tw-bg-white.tw-text-green {
-  -webkit-box-shadow: 0px 2px 8px 0px #00994c80 !important;
-  -moz-box-shadow: 0px 2px 8px 0px #00994c80 !important;
-  box-shadow: 0px 2px 8px 0px #00994c80 !important;
-  border: 1px solid theme("colors.light-green") !important;
+.v-btn.v-btn--is-elevated.tw-bg-blue,
+.v-btn.v-btn--is-elevated.tw-bg-white.tw-text-blue {
+  -webkit-box-shadow: 0px 2px 8px 0px rgba(59, 130, 246, 0.5) !important;
+  -moz-box-shadow: 0px 2px 8px 0px rgba(59, 130, 246, 0.5) !important;
+  box-shadow: 0px 2px 8px 0px rgba(59, 130, 246, 0.5) !important;
+  border: 1px solid theme("colors.light-blue") !important;
 }
 
 .v-btn.v-btn--is-elevated.tw-bg-very-dark-gray {
@@ -147,14 +147,6 @@ html {
   -moz-box-shadow: 0px 2px 6px 0px rgba(0, 0, 0, 0.25) !important;
   box-shadow: 0px 2px 6px 0px rgba(0, 0, 0, 0.25) !important;
   border: 1px solid theme("colors.dark-gray") !important;
-}
-
-.v-btn.v-btn--is-elevated.tw-bg-blue,
-.v-btn.v-btn--is-elevated.tw-bg-white.tw-text-blue {
-  -webkit-box-shadow: 0px 2px 6px 0px rgba(0, 0, 0, 0.25) !important;
-  -moz-box-shadow: 0px 2px 6px 0px rgba(0, 0, 0, 0.25) !important;
-  box-shadow: 0px 2px 6px 0px rgba(0, 0, 0, 0.25) !important;
-  border: 1px solid theme("colors.light-blue") !important;
 }
 
 /** Drop shadows */

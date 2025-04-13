@@ -14,7 +14,7 @@
         404 - Page not found
       </h1>
       <div class="tw-text-center tw-text-dark-gray">
-        The page you’re looking for doesn’t exist or an error occurred.
+        The page you're looking for doesn't exist or an error occurred.
       </div>
     </div>
     <v-btn href="/home" color="primary">Back to home</v-btn>

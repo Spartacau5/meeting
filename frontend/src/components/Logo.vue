@@ -17,8 +17,11 @@ export default {
 
   props: {
     type: {
-      type: "schej" | "betterwhen2meet" | "aprilfools",
-      default: "schej",
+      type: String,
+      default: "gatherly",
+      validator: function(value) {
+        return ["gatherly", "betterwhen2meet", "aprilfools", "schej"].includes(value)
+      }
     },
   },
 
@@ -30,13 +33,13 @@ export default {
       if (this.type === "betterwhen2meet") {
         return "Betterwhen2meet Logo"
       }
-
-      return "Schej Logo"
+      return this.type === "schej" ? "Schej Logo" : "Gatherly Logo"
     },
     src() {
       switch (this.type) {
+        case "gatherly":
         case "schej":
-          return require("@/assets/schej_logo_with_text.png")
+          return require("@/assets/logo.png")
         case "betterwhen2meet":
           return require("@/assets/april_fools_logo.png")
         case "aprilfools":
@@ -45,8 +48,9 @@ export default {
     },
     width() {
       switch (this.type) {
+        case "gatherly":
         case "schej":
-          return this.isPhone ? 70 : 90
+          return this.isPhone ? 85 : 110
         case "betterwhen2meet":
           return this.isPhone ? 200 : 300
         case "aprilfools":

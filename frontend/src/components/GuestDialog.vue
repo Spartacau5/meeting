@@ -45,7 +45,7 @@
             <v-spacer />
             <v-btn
               @click="submit"
-              class="tw-bg-green"
+              class="tw-bg-blue"
               :dark="formValid"
               :disabled="!formValid"
             >

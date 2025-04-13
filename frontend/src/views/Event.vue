@@ -66,7 +66,7 @@
         <v-card-text
           ><span class="tw-font-medium"
             >You're about to add your availability without filling out all pages
-            of this Schej.</span
+            of this Gatherly.</span
           >
           Click the left and right arrows at the top to switch between
           pages.</v-card-text
@@ -134,7 +134,7 @@
                 <v-btn
                   id="edit-event-btn"
                   @click="editEvent"
-                  class="tw-px-2 tw-text-sm tw-text-green"
+                  class="tw-px-2 tw-text-sm tw-text-blue"
                   text
                 >
                   Edit {{ isGroup ? "group" : "event" }}
@@ -158,30 +158,42 @@
               <v-btn
                 :icon="isPhone"
                 :outlined="!isPhone"
-                class="tw-text-green"
+                class="tw-text-blue"
                 @click="refreshCalendar"
                 :loading="loading"
               >
                 <v-icon class="tw-mr-1" v-if="!isPhone">mdi-refresh</v-icon>
                 <span v-if="!isPhone" class="tw-mr-2">Refresh</span>
-                <v-icon class="tw-text-green" v-else>mdi-refresh</v-icon>
+                <v-icon class="tw-text-blue" v-else>mdi-refresh</v-icon>
               </v-btn>
             </div>
             <div v-else>
-              <v-btn
-                :icon="isPhone"
-                :outlined="!isPhone"
-                class="tw-text-green"
-                @click="copyLink"
-              >
-                <span v-if="!isPhone" class="tw-mr-2 tw-text-green"
-                  >Copy link</span
+              <div class="tw-flex tw-items-center">
+                <div 
+                  v-if="event.shortId" 
+                  class="tw-mr-2 tw-px-3 tw-py-1 tw-bg-gray-100 tw-rounded-md tw-cursor-pointer tw-flex tw-items-center"
+                  @click="copyLink"
+                  v-tooltip="'Click to copy event link'"
                 >
-                <v-icon class="tw-text-green" v-if="!isPhone"
-                  >mdi-content-copy</v-icon
+                  <span class="tw-font-semibold">Code:</span> 
+                  <span class="tw-ml-1 tw-text-blue tw-font-mono">{{ event.shortId }}</span>
+                  <v-icon class="tw-ml-1 tw-text-blue tw-text-sm">mdi-content-copy</v-icon>
+                </div>
+                <v-btn
+                  :icon="isPhone"
+                  :outlined="!isPhone"
+                  class="tw-text-blue"
+                  @click="copyLink"
                 >
-                <v-icon class="tw-text-green" v-else>mdi-share</v-icon>
-              </v-btn>
+                  <span v-if="!isPhone" class="tw-mr-2 tw-text-blue"
+                    >Copy link</span
+                  >
+                  <v-icon class="tw-text-blue" v-if="!isPhone"
+                    >mdi-content-copy</v-icon
+                  >
+                  <v-icon class="tw-text-blue" v-else>mdi-share</v-icon>
+                </v-btn>
+              </div>
             </div>
             <div
               v-if="!isPhone && (!isSignUp || canEdit)"
@@ -191,7 +203,7 @@
                 <v-btn
                   v-if="!isGroup && !authUser && selectedGuestRespondent"
                   min-width="10.25rem"
-                  class="tw-bg-green tw-text-white tw-transition-opacity"
+                  class="tw-bg-blue tw-text-white tw-transition-opacity"
                   :style="{ opacity: availabilityBtnOpacity }"
                   @click="editGuestAvailability"
                 >
@@ -205,7 +217,7 @@
                   v-else
                   width="10.25rem"
                   class="tw-text-white tw-transition-opacity"
-                  :class="'tw-bg-green'"
+                  :class="'tw-bg-blue'"
                   :disabled="loading && !userHasResponded"
                   :style="{ opacity: availabilityBtnOpacity }"
                   @click="() => addAvailability()"
@@ -223,7 +235,7 @@
                 </v-btn>
                 <v-btn
                   class="tw-w-20 tw-text-white"
-                  :class="'tw-bg-green'"
+                  :class="'tw-bg-blue'"
                   @click="() => saveChanges()"
                 >
                   Save
@@ -263,33 +275,6 @@
       />
     </div>
 
-    <template v-if="showFeedbackBtn">
-      <div class="tw-w-full tw-border-t tw-border-solid tw-border-gray"></div>
-
-      <div class="tw-flex tw-flex-col tw-items-center" v-if="showFeedbackBtn">
-        <v-btn
-          class="tw-h-16"
-          block
-          id="feedback-btn"
-          text
-          href="https://forms.gle/9AgRy4PQfWfVuBnw8"
-          target="_blank"
-        >
-          Give feedback to Schej team
-        </v-btn>
-        <div class="tw-w-full tw-border-t tw-border-solid tw-border-gray"></div>
-        <v-btn
-          class="tw-h-16"
-          block
-          text
-          href="https://www.paypal.com/donate/?hosted_button_id=KWCH6LGJCP6E6"
-          target="_blank"
-        >
-          Donate
-        </v-btn>
-      </div>
-    </template>
-
     <div class="tw-h-8"></div>
 
     <!-- Bottom bar for phones -->
@@ -297,21 +282,18 @@
       v-if="isPhone && (!isSignUp || canEdit)"
       class="tw-fixed tw-bottom-0 tw-z-20 tw-flex tw-h-16 tw-w-full tw-items-center tw-px-4"
       :class="`${isIOS ? 'tw-pb-2' : ''} ${
-        isScheduling ? 'tw-bg-blue' : 'tw-bg-green'
+        isScheduling ? 'tw-bg-blue' : 'tw-bg-blue'
       }`"
     >
       <template v-if="!isEditing && !isScheduling">
-        <v-btn
-          v-if="!event.daysOnly && numResponses > 0"
-          text
-          class="tw-text-white"
-          @click="scheduleEvent"
-          >Schedule</v-btn
-        >
+        <div class="tw-text-white tw-flex tw-items-center">
+          <span class="tw-text-base">Responses ({{ numResponses }}/{{ event.maxRespondents || 0 }})</span>
+          <span v-if="numResponses === 0" class="tw-ml-2 tw-text-white/80 tw-text-sm">No responses yet!</span>
+        </div>
         <v-spacer />
         <v-btn
           v-if="!isGroup && !authUser && selectedGuestRespondent"
-          class="tw-bg-white tw-text-green tw-transition-opacity"
+          class="tw-bg-white tw-text-blue tw-transition-opacity"
           :style="{ opacity: availabilityBtnOpacity }"
           @click="editGuestAvailability"
         >
@@ -319,7 +301,7 @@
         </v-btn>
         <v-btn
           v-else
-          class="tw-bg-white tw-text-green tw-transition-opacity"
+          class="tw-bg-white tw-text-blue tw-transition-opacity"
           :disabled="loading && !userHasResponded"
           :style="{ opacity: availabilityBtnOpacity }"
           @click="() => addAvailability()"
@@ -332,7 +314,7 @@
           Cancel
         </v-btn>
         <v-spacer />
-        <v-btn class="tw-bg-white tw-text-green" @click="() => saveChanges()">
+        <v-btn class="tw-bg-white tw-text-blue" @click="() => saveChanges()">
           Save
         </v-btn>
       </template>
@@ -350,6 +332,48 @@
         </v-btn>
       </template>
     </div>
+
+    <!-- Footer -->
+    <footer v-if="!isPhone" class="tw-bg-white tw-py-8 tw-border-t tw-border-gray-200">
+      <div class="tw-max-w-6xl tw-mx-auto tw-px-4">
+        <div class="tw-grid tw-grid-cols-1 tw-gap-8 md:tw-grid-cols-3">
+          <div>
+            <Logo type="gatherly" class="tw-mb-4" />
+            <p class="tw-text-gray-600">
+              Finding a time to meet, made simple.
+            </p>
+          </div>
+          
+          <div>
+            <h3 class="tw-font-semibold tw-mb-4 tw-text-gray-800">Quick Links</h3>
+            <div class="tw-space-y-2">
+              <a href="#" @click.prevent="signIn" class="tw-block tw-text-gray-600 hover:tw-text-blue tw-transition-colors">
+                Sign In
+              </a>
+              <a href="https://docs.google.com/forms/d/e/1FAIpQLScHXWfH7o4sbFEo66A3vGGwK_PYi9loVxYaqt7Eb8X5zvGy1g/viewform" target="_blank" class="tw-block tw-text-gray-600 hover:tw-text-blue tw-transition-colors">
+                Give Feedback
+              </a>
+            </div>
+          </div>
+          
+          <div>
+            <h3 class="tw-font-semibold tw-mb-4 tw-text-gray-800">Get Started</h3>
+            <v-btn
+              color="primary"
+              class="tw-rounded-lg tw-bg-blue tw-text-white hover:tw-bg-[#0055FF] tw-transition-colors"
+              @click="createNew"
+              elevation="2"
+            >
+              Create Event
+            </v-btn>
+          </div>
+        </div>
+        
+        <div class="tw-mt-8 tw-pt-6 tw-border-t tw-border-gray-200 tw-text-center tw-text-sm tw-text-gray-600">
+          © 2025 Arpit Ahluwalia. All rights reserved.
+        </div>
+      </div>
+    </footer>
   </div>
 </template>
 
@@ -379,6 +403,8 @@ import MarkAvailabilityDialog from "@/components/calendar_permission_dialogs/Mar
 import InvitationDialog from "@/components/groups/InvitationDialog.vue"
 import HelpDialog from "@/components/HelpDialog.vue"
 import EventDescription from "@/components/event/EventDescription.vue"
+import Logo from "@/components/Logo.vue"
+
 export default {
   name: "Event",
 
@@ -401,6 +427,7 @@ export default {
     InvitationDialog,
     HelpDialog,
     EventDescription,
+    Logo,
   },
 
   data: () => ({
@@ -496,9 +523,6 @@ export default {
     selectedGuestRespondent() {
       return this.scheduleOverlapComponent?.selectedGuestRespondent
     },
-    showFeedbackBtn() {
-      return this.isPhone
-    },
     numResponses() {
       return this.scheduleOverlapComponent?.respondents.length
     },
@@ -564,10 +588,22 @@ export default {
     },
     copyLink() {
       /* Copies event link to clipboard */
-      navigator.clipboard.writeText(
-        `${window.location.origin}/e/${this.event.shortId ?? this.event._id}`
-      )
-      this.showInfo("Link copied to clipboard!")
+      const url = `${window.location.origin}/e/${this.event.shortId ?? this.event._id}`;
+      
+      // Create temporary input element
+      const tempInput = document.createElement('input');
+      tempInput.value = url;
+      document.body.appendChild(tempInput);
+      
+      // Select and copy
+      tempInput.select();
+      document.execCommand('copy');
+      
+      // Clean up
+      document.body.removeChild(tempInput);
+      
+      const code = this.event.shortId ? ` (Code: ${this.event.shortId})` : '';
+      this.showInfo(`Event link copied to clipboard!${code}`)
     },
     async deleteAvailability() {
       if (!this.scheduleOverlapComponent) return
@@ -969,6 +1005,21 @@ export default {
     },
 
     //#endregion
+
+    createNew() {
+      this.$emit("setNewDialogOptions", {
+        show: true,
+        contactsPayload: {},
+        openNewGroup: false,
+      })
+    },
+    signIn() {
+      if (isWebview(navigator.userAgent)) {
+        this.webviewDialog = true
+        return
+      }
+      signInGoogle({ state: null, selectAccount: true })
+    },
   },
 
   async created() {
@@ -1021,6 +1072,10 @@ export default {
     Promise.allSettled(promises).then(() => {
       this.loading = false
     })
+
+    this.initCalendar()
+
+    document.title = `${this.event.name} - Gatherly`
   },
 
   beforeDestroy() {
@@ -1033,7 +1088,7 @@ export default {
         this.$nextTick(() => {
           this.scheduleOverlapComponent = this.$refs.scheduleOverlap
         })
-        document.title = `${this.event.name} - Schej`
+        document.title = `${this.event.name} - Gatherly`
       }
     },
     scheduleOverlapComponent() {

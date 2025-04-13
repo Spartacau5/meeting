@@ -20,6 +20,7 @@
           </div>
         </template>
       </v-switch>
+
       <v-switch
         v-if="numResponses >= 1 && !isGroup"
         inset

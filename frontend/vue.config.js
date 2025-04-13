@@ -7,4 +7,8 @@ module.exports = defineConfig({
   //     openAnalyzer: false,
   //   },
   // },
+  devServer: {
+    port: 8080,
+    allowedHosts: "all"
+  }
 })

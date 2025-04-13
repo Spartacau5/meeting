@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -17,8 +18,20 @@ import (
 	"schej.it/server/utils"
 )
 
+// UserInfo represents information about a user from an OAuth provider
+type UserInfo struct {
+	ID            string `json:"id"`
+	Email         string `json:"email"`
+	VerifiedEmail bool   `json:"verified_email"`
+	Name          string `json:"name"`
+	GivenName     string `json:"given_name"`
+	FamilyName    string `json:"family_name"`
+	Picture       string `json:"picture"`
+	Locale        string `json:"locale"`
+}
+
 // Returns access, refresh, and id tokens from the auth code
-func GetTokensFromAuthCode(code string, scope string, origin string, calendarType models.CalendarType) TokenResponse {
+func GetTokensFromAuthCode(code string, scope string, origin string, calendarType models.CalendarType) (TokenResponse, error) {
 	clientId, clientSecret := getCredentialsFromCalendarType(calendarType)
 	tokenEndpoint := getTokenEndpointFromCalendarType(calendarType)
 
@@ -32,24 +45,45 @@ func GetTokensFromAuthCode(code string, scope string, origin string, calendarTyp
 		"redirect_uri":  {redirectUri},
 		"grant_type":    {"authorization_code"},
 	}
+
+	logger.StdOut.Printf("Making token exchange request to %s with redirect_uri=%s", tokenEndpoint, redirectUri)
+	
 	resp, err := http.PostForm(
 		tokenEndpoint,
 		values,
 	)
 	if err != nil {
-		logger.StdErr.Panicln(err)
+		logger.StdErr.Printf("Failed to make token exchange request: %v", err)
+		return TokenResponse{}, fmt.Errorf("failed to make token exchange request: %w", err)
 	}
 	defer resp.Body.Close()
 
-	var res TokenResponse
-
-	json.NewDecoder(resp.Body).Decode(&res)
-	if len(res.Error) > 0 {
-		data, _ := json.MarshalIndent(res, "", "  ")
-		logger.StdErr.Panicln(string(data))
+	// Read response body for logging
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		logger.StdErr.Printf("Failed to read response body: %v", err)
+		return TokenResponse{}, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	return res
+	// Check response status
+	if resp.StatusCode != http.StatusOK {
+		logger.StdErr.Printf("Token exchange failed with status %d: %s", resp.StatusCode, string(body))
+		return TokenResponse{}, fmt.Errorf("token exchange failed with status %d", resp.StatusCode)
+	}
+
+	var res TokenResponse
+	if err := json.Unmarshal(body, &res); err != nil {
+		logger.StdErr.Printf("Failed to parse token response: %v", err)
+		return TokenResponse{}, fmt.Errorf("failed to parse token response: %w", err)
+	}
+
+	if len(res.Error) > 0 {
+		logger.StdErr.Printf("Token exchange returned error: %s", res.Error)
+		return TokenResponse{}, fmt.Errorf("token exchange error: %s", res.Error)
+	}
+
+	logger.StdOut.Printf("Successfully exchanged code for tokens")
+	return res, nil
 }
 
 func RefreshAccessToken(accountAuth *models.OAuth2CalendarAuth, calendarType models.CalendarType) AccessTokenResponse {
@@ -167,4 +201,33 @@ func getTokenEndpointFromCalendarType(calendarType models.CalendarType) string {
 	}
 
 	return ""
+}
+
+func GetUserInfo(accessToken string) (UserInfo, error) {
+	req, err := http.NewRequest("GET", "https://www.googleapis.com/oauth2/v2/userinfo", nil)
+	if err != nil {
+		logger.StdErr.Printf("Error creating request to get user info: %v\n", err)
+		return UserInfo{}, fmt.Errorf("failed to get user info: %w", err)
+	}
+
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", accessToken))
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		logger.StdErr.Printf("Error getting user info: %v\n", err)
+		return UserInfo{}, fmt.Errorf("failed to get user info: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		logger.StdErr.Printf("User info request failed with status %d\n", resp.StatusCode)
+		return UserInfo{}, fmt.Errorf("user info request failed with status %d", resp.StatusCode)
+	}
+
+	var userInfo UserInfo
+	if err := json.NewDecoder(resp.Body).Decode(&userInfo); err != nil {
+		logger.StdErr.Printf("Error decoding user info response: %v\n", err)
+		return UserInfo{}, fmt.Errorf("failed to decode user info response: %w", err)
+	}
+
+	return userInfo, nil
 }

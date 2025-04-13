@@ -366,7 +366,7 @@
                               class="tw-h-full tw-w-full tw-border-2"
                               :class="
                                 timeBlock.type === 'available'
-                                  ? 'overlay-avail-shadow-green tw-border-[#00994CB3] tw-bg-[#00994C66]'
+                                  ? 'overlay-avail-shadow-blue tw-border-[#006BE8B3] tw-bg-[#53A2FF66]'
                                   : 'overlay-avail-shadow-yellow tw-border-[#997700CC] tw-bg-[#FFE8B8B3]'
                               "
                             ></div>
@@ -677,6 +677,7 @@
                 :isGroup="isGroup"
                 :attendees="event.attendees"
                 :showCalendarEvents.sync="showCalendarEvents"
+                :responses="fetchedResponses"
                 :responsesFormatted="responsesFormatted"
                 :timezone="curTimezone"
                 :show-best-times.sync="showBestTimes"
@@ -693,6 +694,7 @@
                 @clickRespondent="clickRespondent"
                 @editGuestAvailability="editGuestAvailability"
                 @refreshEvent="refreshEvent"
+                @select-time="handleTimeSelection"
               />
             </template>
           </template>
@@ -804,48 +806,47 @@
         </v-expand-transition>
 
         <!-- Respondents list -->
-        <v-expand-transition>
-          <div v-if="delayedShowStickyRespondents">
-            <div class="tw-bg-white tw-p-4">
-              <RespondentsList
-                :max-height="100"
-                :event="event"
-                :eventId="event._id"
-                :days="allDays"
-                :times="times"
-                :curDate="getDateFromRowCol(curTimeslot.row, curTimeslot.col)"
-                :curRespondent="curRespondent"
-                :curRespondents="curRespondents"
-                :curTimeslot="curTimeslot"
-                :curTimeslotAvailability="curTimeslotAvailability"
-                :respondents="respondents"
-                :parsedResponses="parsedResponses"
-                :isOwner="isOwner"
-                :isGroup="isGroup"
-                :attendees="event.attendees"
-                :showCalendarEvents.sync="showCalendarEvents"
-                :responsesFormatted="responsesFormatted"
-                :timezone="curTimezone"
-                :show-best-times.sync="showBestTimes"
-                :hide-if-needed.sync="hideIfNeeded"
-                :show-event-options="showEventOptions"
-                :guestAddedAvailability="guestAddedAvailability"
-                :addingAvailabilityAsGuest="addingAvailabilityAsGuest"
-                @toggleShowEventOptions="toggleShowEventOptions"
-                @addAvailability="$emit('addAvailability')"
-                @addAvailabilityAsGuest="$emit('addAvailabilityAsGuest')"
-                @mouseOverRespondent="mouseOverRespondent"
-                @mouseLeaveRespondent="mouseLeaveRespondent"
-                @clickRespondent="clickRespondent"
-                @editGuestAvailability="editGuestAvailability"
-                @refreshEvent="refreshEvent"
-              />
-            </div>
+        <transition name="slide-up">
+          <div v-if="showStickyRespondents" class="tw-bg-white tw-p-4 tw-shadow-lg">
+            <RespondentsList
+              :max-height="100"
+              :event="event"
+              :eventId="event._id"
+              :days="allDays"
+              :times="times"
+              :curDate="getDateFromRowCol(curTimeslot.row, curTimeslot.col)"
+              :curRespondent="curRespondent"
+              :curRespondents="curRespondents"
+              :curTimeslot="curTimeslot"
+              :curTimeslotAvailability="curTimeslotAvailability"
+              :respondents="respondents"
+              :parsedResponses="parsedResponses"
+              :isOwner="isOwner"
+              :isGroup="isGroup"
+              :attendees="event.attendees"
+              :showCalendarEvents.sync="showCalendarEvents"
+              :responses="fetchedResponses"
+              :responsesFormatted="responsesFormatted"
+              :timezone="curTimezone"
+              :show-best-times.sync="showBestTimes"
+              :hide-if-needed.sync="hideIfNeeded"
+              :show-event-options="showEventOptions"
+              :guestAddedAvailability="guestAddedAvailability"
+              :addingAvailabilityAsGuest="addingAvailabilityAsGuest"
+              @toggleShowEventOptions="toggleShowEventOptions"
+              @addAvailability="$emit('addAvailability')"
+              @addAvailabilityAsGuest="$emit('addAvailabilityAsGuest')"
+              @mouseOverRespondent="mouseOverRespondent"
+              @mouseLeaveRespondent="mouseLeaveRespondent"
+              @clickRespondent="clickRespondent"
+              @editGuestAvailability="editGuestAvailability"
+              @refreshEvent="refreshEvent"
+              @select-time="handleTimeSelection"
+            />
           </div>
-        </v-expand-transition>
+        </transition>
       </div>
     </div>
-    
   </span>
 </template>
 
@@ -854,9 +855,26 @@
   transition: background-color 0.25s ease-in-out;
 }
 
-.break {
-  flex-basis: 100%;
-  height: 0;
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition: transform 0.3s ease-out;
+}
+
+.slide-up-enter,
+.slide-up-leave-to {
+  transform: translateY(100%);
+}
+
+.slide-up-enter-to,
+.slide-up-leave {
+  transform: translateY(0);
+}
+
+.overlay-avail-shadow-blue {
+  box-shadow: 0px 3px 6px 0px #006BE84d !important;
+}
+.overlay-avail-shadow-yellow {
+  box-shadow: 0px 2px 8px 0px #e5a8004d !important;
 }
 </style>
 
@@ -938,7 +956,7 @@ export default {
     sampleCalendarEventsByDay: { type: Array, required: false }, // Sample calendar events to use for example calendars
     calendarPermissionGranted: { type: Boolean, default: false }, // Whether user has granted google calendar permissions
 
-    weekOffset: { type: Number, default: 0 }, // Week offset used for displaying calendar events on weekly schejs
+    weekOffset: { type: Number, default: 0 }, // Week offset used for displaying calendar events on weekly calendars
 
     alwaysShowCalendarEvents: { type: Boolean, default: false }, // Whether to show calendar events all the time
     noEventNames: { type: Boolean, default: false }, // Whether to show "busy" instead of the event name
@@ -967,7 +985,7 @@ export default {
         EDIT_SIGN_UP_BLOCKS: "edit_sign_up_blocks", // Edit the slots on a sign up form
         SCHEDULE_EVENT: "schedule_event", // Schedule event on gcal
       },
-      state: "best_times",
+      state: "heatmap", // Set initial state to heatmap
 
       availability: new Set(), // The current user's availability
       ifNeeded: new Set(), // The current user's "if needed" availability
@@ -1028,8 +1046,7 @@ export default {
       curTimezone: this.initialTimezone,
       curScheduledEvent: null, // The scheduled event represented in the form {hoursOffset, hoursLength, dayIndex}
       timeType:
-        localStorage["timeType"] ??
-        (userPrefers12h() ? timeTypes.HOUR12 : timeTypes.HOUR24), // Whether 12-hour or 24-hour
+        localStorage["timeType"] ?? timeTypes.HOUR12, // Always default to 12-hour format
       showCalendarEvents: false,
       startCalendarOnMonday: false,
       // localStorage["startCalendarOnMonday"] == undefined
@@ -1079,6 +1096,8 @@ export default {
         "dec",
       ],
       suggestTimeDialog: false,
+      selectedSuggestedTime: null, // Track the selected suggested time
+      prevState: null, // Track previous state
     }
   },
   computed: {
@@ -1466,7 +1485,7 @@ export default {
       style.height = `calc(${height} * 1rem)`
       return style
     },
-    /** Parses the responses to the Schej, makes necessary changes based on the type of event, and returns it */
+    /** Parses the responses to the event, makes necessary changes based on the type of event, and returns it */
     parsedResponses() {
       const parsed = {}
 
@@ -1656,13 +1675,7 @@ export default {
     },
 
     showStickyRespondents() {
-      return (
-        this.isPhone &&
-        !this.scrolledToRespondents &&
-        (this.curTimeslot.row !== -1 ||
-          this.curRespondent.length > 0 ||
-          this.curRespondents.length > 0)
-      )
+      return !this.editing && this.respondents.length > 0
     },
 
     // Hint stuff
@@ -1851,6 +1864,20 @@ export default {
         (this.isGroup || (!this.isGroup && !this.userHasResponded))
       )
     },
+    /** Returns whether a time slot should be highlighted as a suggested time */
+    isSuggestedTime() {
+      return (row, col) => {
+        if (!this.selectedSuggestedTime) return false;
+        const date = this.getDateFromRowCol(row, col);
+        return date.getTime() === this.selectedSuggestedTime;
+      };
+    },
+    suggestedTimeOpacity() {
+      if (!this.selectedSuggestedTime) return 0;
+      const elapsed = (Date.now() - this.selectedSuggestedTime) / 1000; // seconds elapsed
+      const duration = 5; // total duration in seconds
+      return Math.max(0, 1 - (elapsed / duration));
+    }
   },
   methods: {
     ...mapMutations(["setAuthUser"]),
@@ -1901,10 +1928,9 @@ export default {
     // -----------------------------------
     mouseOverRespondent(e, id) {
       if (this.curRespondents.length === 0) {
-        if (this.state === this.defaultState) {
+        if (this.state === this.states.HEATMAP || this.state === this.states.BEST_TIMES) {
           this.state = this.states.SINGLE_AVAILABILITY
         }
-
         this.curRespondent = id
       }
     },
@@ -1913,7 +1939,6 @@ export default {
         if (this.state === this.states.SINGLE_AVAILABILITY) {
           this.state = this.defaultState
         }
-
         this.curRespondent = ""
       }
     },
@@ -2556,9 +2581,15 @@ export default {
         this.responsesFormatted.get(date.getTime()) ?? new Set()
 
       // Fill style
-
       if (this.isSignUp) {
         c += "tw-bg-light-gray "
+        return { class: c, style: s }
+      }
+
+      // Add suggested time highlighting with fade out
+      if (this.isSuggestedTime(row, col)) {
+        c += "suggested-time-fade "
+        s.backgroundColor = "#E5A800"
         return { class: c, style: s }
       }
 
@@ -2575,110 +2606,47 @@ export default {
           // Set style if drag range goes over the current timeslot
           if (this.dragType === this.DRAG_TYPES.ADD) {
             if (this.availabilityType === availabilityTypes.AVAILABLE) {
-              s.backgroundColor = "#00994C88"
+              s.backgroundColor = "#006BE888"
             } else if (this.availabilityType === availabilityTypes.IF_NEEDED) {
               c += "tw-bg-yellow "
             }
-          } else if (this.dragType === this.DRAG_TYPES.REMOVE) {
           }
         } else {
           // Otherwise just show the current availability
-          // Show current availability from availability set
           if (this.availability.has(date.getTime())) {
-            s.backgroundColor = "#00994C88"
+            s.backgroundColor = "#006BE888"
           } else if (this.ifNeeded.has(date.getTime())) {
             c += "tw-bg-yellow "
           }
         }
-      }
-
-      if (this.state === this.states.SINGLE_AVAILABILITY) {
+      } else if (this.state === this.states.SINGLE_AVAILABILITY) {
         // Show only the currently selected respondent's availability
         const respondent = this.curRespondent
         if (timeslotRespondents.has(respondent)) {
           if (this.parsedResponses[respondent]?.ifNeeded?.has(date.getTime())) {
             c += "tw-bg-yellow "
           } else {
-            s.backgroundColor = "#00994C88"
+            s.backgroundColor = "#006BE888"
           }
         }
-      }
-
-      if (
-        this.overlayAvailability ||
-        this.state === this.states.BEST_TIMES ||
-        this.state === this.states.HEATMAP ||
-        this.state === this.states.SCHEDULE_EVENT ||
-        this.state === this.states.SUBSET_AVAILABILITY
-      ) {
-        let numRespondents
-        let max
-
-        if (
-          this.state === this.states.BEST_TIMES ||
-          this.state === this.states.HEATMAP ||
-          this.state === this.states.SCHEDULE_EVENT
-        ) {
-          numRespondents = timeslotRespondents.size
-          max = this.max
-        } else if (this.state === this.states.SUBSET_AVAILABILITY) {
-          numRespondents = [...timeslotRespondents].filter((r) =>
-            this.curRespondentsSet.has(r)
-          ).length
-
-          max = this.curRespondentsMax
-        } else if (this.overlayAvailability) {
-          if (
-            (this.userHasResponded || this.curGuestId?.length > 0) &&
-            timeslotRespondents.has(this.authUser?._id ?? this.curGuestId)
-          ) {
-            // Subtract 1 because we do not want to include current user's availability
-            numRespondents = timeslotRespondents.size - 1
-            max = this.max
-          } else {
-            numRespondents = timeslotRespondents.size
-            max = this.max
-          }
-        }
-
-        const totalRespondents =
-          this.state === this.states.SUBSET_AVAILABILITY
-            ? this.curRespondents.length
-            : this.respondents.length
-
-        if (this.defaultState === this.states.BEST_TIMES) {
-          if (max > 0 && numRespondents === max) {
-            // Only set timeslot to green for the times that most people are available
-            if (totalRespondents === 1 || this.overlayAvailability) {
-              // Make single responses less saturated
-              const green = "#00994CAA"
-              s.backgroundColor = green
-            } else {
-              const green = "#00994C"
-              s.backgroundColor = green
+      } else if (this.state === this.states.SUBSET_AVAILABILITY) {
+        // Show only the selected respondents' availability
+        if (this.curRespondents.length > 0) {
+          let numRespondents = 0
+          for (const respondent of timeslotRespondents) {
+            if (this.curRespondentsSet.has(respondent)) {
+              numRespondents++
             }
           }
-        } else if (this.defaultState === this.states.HEATMAP) {
+
           if (numRespondents > 0) {
-            if (totalRespondents === 1) {
-              const respondentId =
-                this.state === this.states.SUBSET_AVAILABILITY
-                  ? this.curRespondents[0]
-                  : this.respondents[0]._id
-              if (
-                this.parsedResponses[respondentId]?.ifNeeded?.has(
-                  date.getTime()
-                )
-              ) {
-                c += "tw-bg-yellow "
-              } else {
-                const green = "#00994CAA"
-                s.backgroundColor = green
-              }
+            const max = this.curRespondents.length
+            if (this.overlayAvailability) {
+              s.backgroundColor = "#006BE888"
             } else {
               // Determine color of timeslot based on number of people available
               const frac = numRespondents / max
-              const green = "#00994C"
+              const blue = "#006BE8"
               let alpha
               if (!this.overlayAvailability) {
                 alpha = Math.floor(frac * (255 - 30))
@@ -2703,9 +2671,47 @@ export default {
                   .padStart(2, "0")
               }
 
-              s.backgroundColor = green + alpha
+              s.backgroundColor = blue + alpha
             }
           }
+        }
+      } else if (this.state === this.states.HEATMAP || this.state === this.states.BEST_TIMES) {
+        // Show heatmap of all availabilities
+        if (timeslotRespondents.size > 0) {
+          const numRespondents = timeslotRespondents.size
+          let max = this.respondents.length
+          if (this.curRespondents.length > 0) {
+            max = this.curRespondents.length
+          }
+
+          // Determine color of timeslot based on number of people available
+          const frac = numRespondents / max
+          const blue = "#006BE8"
+          let alpha
+          if (!this.overlayAvailability) {
+            alpha = Math.floor(frac * (255 - 30))
+              .toString(16)
+              .toUpperCase()
+              .substring(0, 2)
+              .padStart(2, "0")
+            if (
+              frac == 1 &&
+              ((this.curRespondents.length > 0 &&
+                max === this.curRespondents.length) ||
+                (this.curRespondents.length === 0 &&
+                  max === this.respondents.length))
+            ) {
+              alpha = "FF"
+            }
+          } else {
+            alpha = Math.floor(frac * (255 - 85))
+              .toString(16)
+              .toUpperCase()
+              .substring(0, 2)
+              .padStart(2, "0")
+          }
+
+          s.backgroundColor = blue + alpha
         }
       }
 
@@ -2931,7 +2937,7 @@ export default {
       const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(
         this.event.name
       )}&dates=${start}/${end}&details=${encodeURIComponent(
-        "\n\nThis event was scheduled with schej: https://schej.it/e/"
+        "\n\nThis event was scheduled with Gatherly: https://gatherly.app/e/"
       )}${this.event._id}&ctz=${this.curTimezone.value}&add=${emailsString}`
 
       // Navigate to url and reset state
@@ -3614,6 +3620,30 @@ export default {
     showSuggestTimeDialog() {
       this.suggestTimeDialog = true;
     },
+    handleTimeSelection(timestamp) {
+      this.selectedSuggestedTime = timestamp;
+      // Clear the selection after 5 seconds
+      setTimeout(() => {
+        this.selectedSuggestedTime = null;
+      }, 5000);
+    },
+    onRespondentMouseEnter(respondent) {
+      if (
+        this.state === this.states.HEATMAP ||
+        this.state === this.states.BEST_TIMES
+      ) {
+        this.prevState = this.state
+        this.state = this.states.SINGLE_AVAILABILITY
+        this.curRespondent = respondent
+      }
+    },
+
+    onRespondentMouseLeave() {
+      if (this.state === this.states.SINGLE_AVAILABILITY) {
+        this.state = this.prevState
+        this.curRespondent = null
+      }
+    },
   },
   watch: {
     availability() {
@@ -3721,6 +3751,17 @@ export default {
     timeType() {
       localStorage["timeType"] = this.timeType
     },
+    suggestedTimeOpacity: {
+      handler(newVal) {
+        if (newVal > 0) {
+          // Force re-render every 100ms while fading
+          setTimeout(() => {
+            this.$forceUpdate();
+          }, 100);
+        }
+      },
+      immediate: true
+    }
   },
   created() {
     this.resetCurUserAvailability()
@@ -3728,8 +3769,8 @@ export default {
     addEventListener("click", this.deselectRespondents)
   },
   mounted() {
-    // Set initial state to best_times or heatmap depending on show best times toggle.
-    this.state = this.showBestTimes ? "best_times" : "heatmap"
+    // Set initial state to heatmap by default
+    this.state = "heatmap"
 
     // Set calendar options defaults
     if (this.authUser) {

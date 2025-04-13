@@ -95,10 +95,16 @@ export default {
       this.suggestions = []
 
       try {
+        console.log("Starting suggestion generation")
+        console.log("Responses:", this.responses)
+        console.log("ResponsesFormatted:", this.responsesFormatted)
+        
         // Get all times with their availability counts and details
         const timeAvailability = new Map()
         const totalRespondents = Object.keys(this.responses).length
         const respondentsList = Object.keys(this.responses)
+        
+        console.log("Total respondents:", totalRespondents)
         
         // Track how many total times each respondent is available
         const respondentAvailabilityCount = {}
@@ -124,6 +130,9 @@ export default {
           })
         }
         
+        console.log("Respondent availability counts:", respondentAvailabilityCount)
+        console.log("Time availability data:", Array.from(timeAvailability.entries()))
+        
         // Calculate scores for each time slot
         const timeScores = []
         for (const [time, data] of timeAvailability.entries()) {
@@ -142,24 +151,19 @@ export default {
           // This represents how much people would have to adjust their schedules
           let sacrificeScore = 0
           
-          // If no one is available, it's a high sacrifice for everyone
-          if (data.count === 0) {
-            sacrificeScore = 100
-          } else {
-            // For each unavailable person, calculate their sacrifice based on how
-            // many other times they're available
-            const unavailablePeople = respondentsList.filter(id => !peopleIds.includes(id))
-            
-            for (const id of unavailablePeople) {
-              // If this person has many other available times, it's a smaller sacrifice
-              const availabilityCount = respondentAvailabilityCount[id] || 0
-              if (availabilityCount === 0) {
-                // If they're not available at any time, high sacrifice
-                sacrificeScore += 20
-              } else {
-                // Otherwise, sacrifice is inversely proportional to their availability
-                sacrificeScore += 10 / Math.sqrt(availabilityCount)
-              }
+          // For each unavailable person, calculate their sacrifice based on how
+          // many other times they're available
+          const unavailablePeople = respondentsList.filter(id => !peopleIds.includes(id))
+          
+          for (const id of unavailablePeople) {
+            // If this person has many other available times, it's a smaller sacrifice
+            const availabilityCount = respondentAvailabilityCount[id] || 0
+            if (availabilityCount === 0) {
+              // If they're not available at any time, high sacrifice
+              sacrificeScore += 20
+            } else {
+              // Otherwise, sacrifice is inversely proportional to their availability
+              sacrificeScore += 10 / Math.sqrt(availabilityCount)
             }
           }
           
@@ -169,7 +173,6 @@ export default {
           if (isEarlyMorning) sacrificeScore += 8
           if (isLateEvening) sacrificeScore += 6
           
-          // Add to scores array
           timeScores.push({
             time: time,
             sacrificeScore: sacrificeScore,
@@ -180,8 +183,12 @@ export default {
           })
         }
         
+        console.log("Time scores before sorting:", timeScores)
+        
         // Sort by sacrifice score (ascending - lower is better)
         timeScores.sort((a, b) => a.sacrificeScore - b.sacrificeScore)
+        
+        console.log("Time scores after sorting:", timeScores)
         
         // Take top 5 suggestions
         const topSuggestions = timeScores.slice(0, 5)
@@ -202,32 +209,9 @@ export default {
             timestamp: suggestion.time
           }
         })
+        
+        console.log("Final suggestions:", this.suggestions)
 
-        // If no suggestions were found (unlikely but possible)
-        if (this.suggestions.length === 0) {
-          // Look for any times with at least partial availability
-          const anySuggestions = timeScores.slice(0, 2)
-          
-          if (anySuggestions.length > 0) {
-            this.suggestions = anySuggestions.map(suggestion => {
-              return {
-                time: suggestion.date.toLocaleString('en-US', {
-                  weekday: 'long',
-                  month: 'long',
-                  day: 'numeric',
-                  hour: 'numeric',
-                  minute: 'numeric'
-                }),
-                details: `Partial availability: ${suggestion.peopleAvailable}/${totalRespondents} people. Others may need to adjust.`,
-                people: suggestion.peopleIds,
-                count: suggestion.peopleAvailable,
-                timestamp: suggestion.time
-              }
-            })
-          }
-        }
-
-        console.log("Generated suggestions:", this.suggestions)
       } catch (error) {
         console.error('Error generating suggestions:', error)
       }

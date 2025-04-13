@@ -2,9 +2,10 @@
   <v-card
     :flat="dialog"
     :class="{ 'tw-py-4': !dialog, 'tw-flex-1': dialog }"
-    class="tw-relative tw-flex tw-max-w-[28rem] tw-flex-col tw-overflow-hidden tw-rounded-lg tw-transition-all"
+    class="tw-relative tw-flex tw-flex-col tw-overflow-visible tw-rounded-lg tw-transition-all tw-w-full tw-mx-auto"
+    style="max-width: 100%;"
   >
-    <v-card-title class="tw-mb-2 tw-flex tw-gap-2 tw-px-4 sm:tw-px-8">
+    <v-card-title class="tw-mb-2 tw-flex tw-gap-2 tw-px-4 sm:tw-px-8" v-if="dialog">
       <div>
         <div class="tw-mb-1">
           {{ edit ? "Edit event" : "New event" }}
@@ -35,7 +36,7 @@
     </v-card-title>
     <v-card-text
       ref="cardText"
-      class="tw-relative tw-flex-1 tw-overflow-auto tw-px-4 tw-py-1 sm:tw-px-8"
+      class="tw-relative tw-flex-1 tw-overflow-visible tw-px-4 tw-py-1 sm:tw-px-8"
     >
       <AlertText v-if="edit && event?.ownerId == 0" class="tw-mb-4">
         Anybody can edit this event because it was created while not signed in
@@ -134,31 +135,24 @@
                 hide-details="auto"
                 :rules="selectedDaysRules"
                 key="days-of-week"
-                class="tw-w-fit"
+                class="tw-w-full tw-overflow-x-auto"
               >
                 <v-btn-toggle
                   v-model="selectedDaysOfWeek"
                   multiple
                   solo
                   color="primary"
+                  class="tw-flex tw-flex-wrap tw-justify-center"
                 >
-                  <v-btn depressed v-show="!startOnMonday"> Sun </v-btn>
                   <v-btn depressed> Mon </v-btn>
                   <v-btn depressed> Tue </v-btn>
                   <v-btn depressed> Wed </v-btn>
                   <v-btn depressed> Thu </v-btn>
                   <v-btn depressed> Fri </v-btn>
                   <v-btn depressed> Sat </v-btn>
-                  <v-btn depressed v-show="startOnMonday"> Sun </v-btn>
+                  <v-btn depressed> Sun </v-btn>
                 </v-btn-toggle>
               </v-input>
-              <v-checkbox class="tw-mt-2" v-model="startOnMonday" hide-details>
-                <template v-slot:label>
-                  <span class="tw-text-sm tw-text-very-dark-gray">
-                    Start on Monday
-                  </span>
-                </template>
-              </v-checkbox>
             </div>
           </v-expand-transition>
         </div>
@@ -328,7 +322,7 @@
           block
           :loading="loading"
           color="primary"
-          class="tw-mt-4 tw-bg-green"
+          class="tw-mt-4 tw-bg-blue"
           @click="submit"
         >
           {{ edit ? "Save edits" : "Create event" }}
@@ -420,7 +414,7 @@ export default {
     loading: false,
     selectedDays: [],
     selectedDaysOfWeek: [],
-    startOnMonday: false,
+    startOnMonday: true,
     notificationsEnabled: false,
 
     daysOnly: false,

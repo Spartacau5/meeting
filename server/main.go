@@ -30,9 +30,9 @@ import (
 	_ "schej.it/server/docs"
 )
 
-// @title Schej.it API
+// @title Gatherly API
 // @version 1.0
-// @description This is the API for Schej.it!
+// @description This is the API for Gatherly!
 
 // @host localhost:3002/api
 
@@ -87,10 +87,10 @@ func main() {
 
 	// Cors
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:8080", "https://www.schej.it", "https://schej.it"},
-		AllowMethods:     []string{"GET", "POST", "PATCH", "PUT", "DELETE"},
-		AllowHeaders:     []string{"Content-Type"},
-		ExposeHeaders:    []string{"Content-Length"},
+		AllowOrigins:     []string{"http://localhost:8080", "http://192.168.1.159:8080"},
+		AllowMethods:     []string{"GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization", "accept", "origin", "Cache-Control", "X-Requested-With", "Cookie"},
+		ExposeHeaders:    []string{"Content-Length", "Content-Type", "Set-Cookie"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
@@ -105,6 +105,14 @@ func main() {
 
 	// Session
 	store := cookie.NewStore([]byte("secret"))
+	store.Options(sessions.Options{
+		Path:     "/",
+		Domain:   "",
+		MaxAge:   86400 * 7, // 7 days
+		Secure:   false,     // Set to false for development
+		HttpOnly: true,
+		SameSite: http.SameSiteNoneMode,
+	})
 	router.Use(sessions.Sessions("session", store))
 
 	// Init routes

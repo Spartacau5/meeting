@@ -146,9 +146,9 @@
                   :class="
                     sampleCalendarEventsByDay
                       ? undefined
-                      : 'tw-sticky tw-top-14'
+                      : ''
                   "
-                  class="tw-z-10 tw-flex tw-h-14 tw-items-center tw-bg-white sm:tw-top-16"
+                  class="tw-z-10 tw-flex tw-h-14 tw-items-center tw-bg-white"
                 >
                   <div
                     v-for="(day, i) in days"
@@ -472,7 +472,7 @@
 
         <div
           v-if="!calendarOnly"
-          class="tw-px-4 tw-py-4 sm:tw-sticky sm:tw-top-16 sm:tw-flex-none sm:tw-self-start sm:tw-py-0 sm:tw-pl-0 sm:tw-pr-0 sm:tw-pt-14"
+          class="tw-px-4 tw-py-4 sm:tw-flex-none sm:tw-self-start sm:tw-py-0 sm:tw-pl-0 sm:tw-pr-0 sm:tw-pt-14"
           :style="{ width: rightSideWidth }"
         >
           <!-- Show respondents if not sign up form, otherwise, show sign up blocks -->
@@ -986,6 +986,7 @@ export default {
         SCHEDULE_EVENT: "schedule_event", // Schedule event on gcal
       },
       state: "heatmap", // Set initial state to heatmap
+      previousState: null, // Store the previous state to return to
 
       availability: new Set(), // The current user's availability
       ifNeeded: new Set(), // The current user's "if needed" availability
@@ -3271,13 +3272,24 @@ export default {
 
       return localTimezone
     },
+    /**
+     * Called when show best times toggle is changed
+     */
     onShowBestTimesChange() {
-      localStorage["showBestTimes"] = this.showBestTimes
-      if (
-        this.state == this.states.BEST_TIMES ||
-        this.state == this.states.HEATMAP
-      )
-        this.state = this.defaultState
+      console.log("Show best times changed to:", this.showBestTimes);
+      localStorage["showBestTimes"] = this.showBestTimes;
+      
+      if (this.showBestTimes) {
+        // Switch to best times view
+        this.previousState = this.state !== this.states.BEST_TIMES ? this.state : this.states.HEATMAP;
+        this.state = this.states.BEST_TIMES;
+        console.log("Setting state to BEST_TIMES");
+      } else {
+        // Switch back to previous state or default to heatmap
+        const newState = this.previousState || this.states.HEATMAP;
+        this.state = newState;
+        console.log("Switching back to state:", newState);
+      }
     },
     toggleShowEditOptions() {
       this.showEditOptions = !this.showEditOptions
@@ -3643,6 +3655,57 @@ export default {
         this.state = this.prevState
         this.curRespondent = null
       }
+    },
+    
+    /**
+     * Get time slots where at least minPeople number of respondents are available
+     * @param {number} minPeople - Minimum number of people that need to be available
+     * @returns {Array} - Array of available time slots with text and value properties
+     */
+    getOverlappingTimeSlots(minPeople = 2) {
+      console.log("Finding overlapping time slots for", minPeople, "people");
+      
+      if (!this.event || !this.event.responses) {
+        console.log("No event or responses");
+        return [];
+      }
+      
+      const responseCount = Object.keys(this.event.responses).length;
+      console.log("Number of responses:", responseCount);
+      
+      if (responseCount < minPeople) {
+        console.log("Not enough responses to find overlaps");
+        return [];
+      }
+      
+      const overlappingSlots = [];
+      const timeFormat = { hour: '2-digit', minute: '2-digit' };
+      
+      // Use the responsesFormatted Map which already has the overlap information
+      for (const [timestampStr, respondents] of this.responsesFormatted.entries()) {
+        // Check if enough people are available at this time
+        if (respondents.size >= minPeople) {
+          const timestamp = parseInt(timestampStr);
+          const slotDate = new Date(timestamp);
+          
+          const timeStr = slotDate.toLocaleTimeString([], timeFormat);
+          const dateStr = slotDate.toLocaleDateString([], { 
+            weekday: 'short', 
+            month: 'short', 
+            day: 'numeric' 
+          });
+          
+          overlappingSlots.push({
+            text: `${dateStr} at ${timeStr} (${respondents.size} available)`,
+            value: slotDate.toISOString()
+          });
+        }
+      }
+      
+      console.log("Found overlapping slots:", overlappingSlots.length);
+      
+      // Sort by date/time
+      return overlappingSlots.sort((a, b) => new Date(a.value) - new Date(b.value));
     },
   },
   watch: {

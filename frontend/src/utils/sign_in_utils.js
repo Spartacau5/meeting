@@ -10,7 +10,7 @@ export const signInGoogle = ({
   loginHint = "",
 }) => {
   const clientId =
-    "523323684219-jfakov2bgsleeb6den4ktpohq4lcnae2.apps.googleusercontent.com"
+    "987232659668-kockdgrjlcpd3aibnahoiul9q4op3ulf.apps.googleusercontent.com"
   const redirectUri = `${window.location.origin}/auth`
 
   let scope = "openid email profile "

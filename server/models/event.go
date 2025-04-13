@@ -88,6 +88,11 @@ type Event struct {
 	When2meetHref            *string              `json:"when2meetHref" bson:"when2meetHref,omitempty"`
 	CollectEmails            *bool                `json:"collectEmails" bson:"collectEmails,omitempty"`
 
+	// Google Meet integration
+	MeetLink      *string `json:"meetLink" bson:"meetLink,omitempty"`
+	MeetStartTime *string `json:"meetStartTime" bson:"meetStartTime,omitempty"`
+	MeetEndTime   *string `json:"meetEndTime" bson:"meetEndTime,omitempty"`
+
 	Type EventType `json:"type" bson:"type,omitempty"`
 
 	// Sign up form details

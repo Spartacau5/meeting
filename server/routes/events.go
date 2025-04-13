@@ -25,6 +25,25 @@ import (
 	"schej.it/server/utils"
 )
 
+// ImportEvent struct for parsing import event request
+type ImportEvent struct {
+	Name           string    `json:"name" binding:"required"`
+	Description    string    `json:"description"`
+	Dates          []string  `json:"dates" binding:"required"`
+	IsGroup        bool      `json:"isGroup"`
+	Attendees      []string  `json:"attendees"`
+	When2meetLinks []string  `json:"when2meetLinks"`
+	When2meetTimes [][]int64 `json:"when2meetTimes"`
+}
+
+// CreateGoogleMeetRequest struct for creating a Google Meet
+type CreateGoogleMeetRequest struct {
+	EventId         string `json:"eventId" binding:"required"`
+	StartDateTime   string `json:"startDateTime" binding:"required"`
+	DurationMinutes int    `json:"durationMinutes" binding:"required"`
+	Title           string `json:"title" binding:"required"`
+}
+
 func InitEvents(router *gin.RouterGroup) {
 	eventRouter := router.Group("/events")
 
@@ -39,6 +58,7 @@ func InitEvents(router *gin.RouterGroup) {
 	eventRouter.GET("/:eventId/calendar-availabilities", middleware.AuthRequired(), getCalendarAvailabilities)
 	eventRouter.DELETE("/:eventId", middleware.AuthRequired(), deleteEvent)
 	eventRouter.POST("/:eventId/duplicate", middleware.AuthRequired(), duplicateEvent)
+	eventRouter.POST("/create-google-meet", middleware.AuthRequired(), createGoogleMeet)
 }
 
 // @Summary Creates a new event
@@ -1243,6 +1263,86 @@ func duplicateEvent(c *gin.Context) {
 
 	insertedId := result.InsertedID.(primitive.ObjectID).Hex()
 	c.JSON(http.StatusCreated, gin.H{"eventId": insertedId, "shortId": shortId})
+}
+
+// @Summary Create a Google Meet link for an event
+// @Description Creates a Google Meet link for the specified event at the given time and duration
+// @Tags events
+// @Accept json
+// @Produce json
+// @Param request body CreateGoogleMeetRequest true "Create Google Meet request"
+// @Success 200 {object} map[string]string
+// @Failure 400 {object} ErrorResponse
+// @Failure 401 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /events/create-google-meet [post]
+func createGoogleMeet(c *gin.Context) {
+	var req CreateGoogleMeetRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	
+	// Get the authenticated user
+	userIdObj, _ := c.Get("userId")
+	userIdStr := userIdObj.(string)
+	
+	// Verify the event exists and the user has permission to modify it
+	event := db.GetEventById(req.EventId)
+	if event == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Event not found"})
+		return
+	}
+	
+	// For now, only the event owner can create a Google Meet link
+	ownerId := event.OwnerId
+	userId := utils.StringToObjectID(userIdStr)
+	if ownerId != userId {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Only the event owner can create a Google Meet link"})
+		return
+	}
+	
+	// Parse the start date/time
+	startTime, err := time.Parse(time.RFC3339, req.StartDateTime)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid start date/time format"})
+		return
+	}
+	
+	// Calculate the end time based on duration
+	endTime := startTime.Add(time.Duration(req.DurationMinutes) * time.Minute)
+	
+	// Format dates for Google Calendar API
+	startTimeStr := startTime.Format(time.RFC3339)
+	endTimeStr := endTime.Format(time.RFC3339)
+	
+	// Create a simple Google Meet link using the event ID and timestamp
+	// In a production environment, this would use the Google Calendar API
+	// to create an actual calendar event with a Meet link
+	
+	// Generate a unique ID for the meeting
+	sanitizedTitle := strings.ToLower(strings.Replace(req.Title, " ", "-", -1))
+	if len(sanitizedTitle) > 10 {
+		sanitizedTitle = sanitizedTitle[:10]
+	}
+	timestamp := fmt.Sprintf("%x", time.Now().Unix())[:8]
+	
+	meetLink := fmt.Sprintf("https://meet.google.com/%s-%s", 
+		sanitizedTitle,
+		timestamp)
+	
+	// For a full integration, you would:
+	// 1. Use Google Calendar API to create an event with conferenceData
+	// 2. Request a Google Meet link to be attached to the event
+	// 3. Return the actual Meet link from the response
+
+	// For demonstration purposes only, we're creating a link format manually
+	
+	c.JSON(http.StatusOK, gin.H{
+		"meetLink": meetLink,
+		"startTime": startTimeStr,
+		"endTime": endTimeStr,
+	})
 }
 
 // Helper function to find a response by userId

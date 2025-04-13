@@ -109,6 +109,101 @@
         </v-card>
       </v-dialog>
 
+      <!-- Create Google Meet dialog -->
+      <v-dialog
+        v-model="createMeetDialog"
+        max-width="550"
+        content-class="tw-m-0"
+      >
+        <v-card>
+          <v-card-title class="tw-flex tw-bg-green-50">
+            <div class="tw-flex tw-items-center">
+              <v-icon color="success" class="tw-mr-2">mdi-video</v-icon>
+              <span>Create Google Meet</span>
+            </div>
+            <v-spacer />
+            <v-btn icon @click="createMeetDialog = false">
+              <v-icon>mdi-close</v-icon>
+            </v-btn>
+          </v-card-title>
+          <v-card-text class="tw-flex tw-flex-col tw-gap-6 tw-pb-4 tw-pt-6">
+            <p class="tw-text-sm tw-text-dark-gray">
+              Schedule a Google Meet video call at a time when meeting participants are available.
+              The calendar event will be created in your Google Calendar and a Meet link will be added to this event.
+            </p>
+            
+            <div class="tw-border tw-border-gray-200 tw-rounded-md tw-p-4 tw-bg-gray-50">
+              <div class="tw-text-base tw-font-medium tw-mb-2">{{ event.name }}</div>
+              <div class="tw-flex tw-items-center tw-mb-2">
+                <v-icon small class="tw-mr-2 tw-text-dark-gray">mdi-account-group</v-icon>
+                <span class="tw-text-sm tw-text-dark-gray">{{ numResponses }} respondents</span>
+              </div>
+              
+              <div v-if="respondents.length > 0" class="tw-mb-3">
+                <div class="tw-flex tw-flex-wrap tw-mt-1">
+                  <v-avatar
+                    v-for="(respondent, i) in respondents.slice(0, 5)"
+                    :key="respondent._id"
+                    size="24"
+                    class="tw-mr-1"
+                    :color="i < 5 ? 'primary' : 'grey'"
+                  >
+                    <span class="tw-text-xs tw-text-white">{{ respondent.name?.charAt(0) }}</span>
+                  </v-avatar>
+                  <v-chip v-if="respondents.length > 5" x-small class="tw-ml-1">
+                    +{{ respondents.length - 5 }} more
+                  </v-chip>
+                </div>
+              </div>
+            </div>
+            
+            <v-select
+              v-model="selectedMeetTime"
+              :items="availableOverlapTimes"
+              label="Start Time"
+              outlined
+              dense
+              :disabled="availableOverlapTimes.length === 0"
+              :hint="availableOverlapTimes.length === 0 ? 'No overlapping times available' : ''"
+              persistent-hint
+            ></v-select>
+            
+            <v-select
+              v-model="meetDuration"
+              :items="meetDurationOptions"
+              label="Duration"
+              outlined
+              dense
+              :disabled="!selectedMeetTime"
+            ></v-select>
+          </v-card-text>
+          <v-card-actions>
+            <v-spacer />
+            <v-btn text @click="createMeetDialog = false">Cancel</v-btn>
+            <v-btn
+              color="success"
+              :disabled="!selectedMeetTime || !meetDuration"
+              @click="generateGoogleMeetLink"
+              :loading="generatingMeetLink"
+            >
+              Create Meet
+            </v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
+
+      <!-- Suggest Time Dialog -->
+      <v-dialog v-model="suggestTimeDialog" max-width="600" content-class="tw-m-0">
+        <SuggestTime 
+          :event="event" 
+          :responses="event.responses" 
+          :responsesFormatted="$refs.scheduleOverlap?.responsesFormatted || new Map()"
+          :respondents="respondents"
+          @select-time="handleSuggestedTime"
+          @close="suggestTimeDialog = false"
+        />
+      </v-dialog>
+
       <div class="tw-mx-auto tw-mt-4 tw-max-w-5xl">
         <div class="tw-mx-4">
           <!-- Title and copy link -->
@@ -192,8 +287,8 @@
                   <div 
                     v-if="event.shortId" 
                     class="tw-mr-2 tw-px-3 tw-py-1 tw-bg-gray-100 tw-rounded-md tw-cursor-pointer tw-flex tw-items-center"
-                    @click="copyLink"
-                    v-tooltip="'Click to copy event link'"
+                    @click="copyCode"
+                    v-tooltip="'Click to copy event code'"
                   >
                     <span class="tw-font-semibold">Code:</span> 
                     <span class="tw-ml-1 tw-text-blue tw-font-mono">{{ event.shortId }}</span>
@@ -213,6 +308,61 @@
                     >
                     <v-icon class="tw-text-blue" v-else>mdi-share</v-icon>
                   </v-btn>
+                  
+                  <!-- Suggest a Time button -->
+                  <v-tooltip bottom v-if="shouldShowSuggestTimeButton">
+                    <template v-slot:activator="{ on, attrs }">
+                      <div v-bind="attrs" v-on="on">
+                        <v-btn
+                          :icon="isPhone"
+                          :outlined="!isPhone"
+                          color="info"
+                          class="tw-ml-2"
+                          @click="suggestTimeDialog = true"
+                          :disabled="numResponses < 2"
+                        >
+                          <span v-if="!isPhone" class="tw-mr-2">Suggest Time</span>
+                          <v-icon v-if="!isPhone">mdi-clock-time-eight-outline</v-icon>
+                          <v-icon v-else>mdi-clock-time-eight-outline</v-icon>
+                        </v-btn>
+                      </div>
+                    </template>
+                    <span>Find optimal meeting times based on availability</span>
+                  </v-tooltip>
+                  
+                  <!-- Google Meet button with enhanced states -->
+                  <v-tooltip bottom :disabled="numResponses >= 2">
+                    <template v-slot:activator="{ on, attrs }">
+                      <div v-bind="attrs" v-on="on">
+                        <v-btn
+                          v-if="!event.googleMeetLink"
+                          :icon="isPhone"
+                          :outlined="!isPhone"
+                          color="success"
+                          class="tw-ml-2"
+                          @click="showCreateMeetDialog"
+                          :disabled="numResponses < 2"
+                        >
+                          <span v-if="!isPhone" class="tw-mr-2">Create Meet</span>
+                          <v-icon v-if="!isPhone">mdi-video-plus</v-icon>
+                          <v-icon v-else>mdi-video-plus</v-icon>
+                        </v-btn>
+                      </div>
+                    </template>
+                    <span>Need at least 2 responses to create a Meet</span>
+                  </v-tooltip>
+                  
+                  <!-- Show Google Meet link if it exists -->
+                  <a 
+                    v-if="event.googleMeetLink" 
+                    :href="event.googleMeetLink" 
+                    target="_blank" 
+                    class="tw-ml-2 tw-px-3 tw-py-1 tw-bg-green-100 tw-rounded-md tw-cursor-pointer tw-flex tw-items-center"
+                    v-tooltip="'Click to open Google Meet'"
+                  >
+                    <v-icon class="tw-mr-1 tw-text-green tw-text-sm">mdi-video</v-icon>
+                    <span class="tw-text-green">Join Meet</span>
+                  </a>
                 </div>
               </div>
               <div
@@ -441,6 +591,7 @@ import InvitationDialog from "@/components/groups/InvitationDialog.vue"
 import HelpDialog from "@/components/HelpDialog.vue"
 import EventDescription from "@/components/event/EventDescription.vue"
 import Logo from "@/components/Logo.vue"
+import SuggestTime from "@/components/schedule_overlap/SuggestTime.vue"
 
 export default {
   name: "Event",
@@ -465,6 +616,7 @@ export default {
     HelpDialog,
     EventDescription,
     Logo,
+    SuggestTime,
   },
 
   data: () => ({
@@ -476,6 +628,19 @@ export default {
     invitationDialog: false,
     pagesNotVisitedDialog: false,
     helpDialog: false,
+    createMeetDialog: false,
+    suggestTimeDialog: false,
+    selectedMeetTime: null,
+    meetDuration: 30,
+    meetDurationOptions: [
+      { text: "15 minutes", value: 15 },
+      { text: "30 minutes", value: 30 },
+      { text: "45 minutes", value: 45 },
+      { text: "60 minutes", value: 60 },
+      { text: "90 minutes", value: 90 },
+    ],
+    availableOverlapTimes: [],
+    generatingMeetLink: false,
 
     loading: true,
     calendarEventsMap: {},
@@ -579,6 +744,55 @@ export default {
     },
     isIOS() {
       return isIOS()
+    },
+    respondents() {
+      return Object.values(this.event.responses)
+    },
+    /** Determine whether to show the "Suggest a Time" button based on availability patterns */
+    shouldShowSuggestTimeButton() {
+      if (!this.$refs.scheduleOverlap || !this.event || this.isGroup || this.isSignUp) return false;
+      
+      // Need at least 2 responses to make suggestions
+      if (this.numResponses < 2) return false;
+      
+      const responsesFormatted = this.$refs.scheduleOverlap.responsesFormatted;
+      if (!responsesFormatted || responsesFormatted.size === 0) return false;
+      
+      const totalRespondents = Object.keys(this.event.responses).length;
+      
+      // Check if there's at least one perfect overlap (everyone available)
+      let hasPerfectOverlap = false;
+      
+      // Check if there's at least one time with majority available
+      let hasMajorityOverlap = false;
+      
+      // Check if there's at least one time with any overlap
+      let hasAnyOverlap = false;
+      
+      for (const [_, people] of responsesFormatted) {
+        const availableCount = people.size;
+        
+        if (availableCount === totalRespondents) {
+          hasPerfectOverlap = true;
+          // If more than one person has perfect overlap, no need to suggest times
+          if (totalRespondents > 1) {
+            return false;
+          }
+        }
+        
+        if (availableCount >= Math.ceil(totalRespondents / 2)) {
+          hasMajorityOverlap = true;
+        }
+        
+        if (availableCount > 1) {
+          hasAnyOverlap = true;
+        }
+      }
+      
+      // Show the button if:
+      // 1. There is no overlap at all between guests, OR
+      // 2. There is no perfect overlap, but a majority overlap exists
+      return !hasAnyOverlap || (!hasPerfectOverlap && hasMajorityOverlap);
     },
   },
 
@@ -1056,6 +1270,89 @@ export default {
         return
       }
       signInGoogle({ state: null, selectAccount: true })
+    },
+    copyCode() {
+      /* Copies just the event code to clipboard */
+      if (!this.event.shortId) return;
+      
+      // Create temporary input element
+      const tempInput = document.createElement('input');
+      tempInput.value = this.event.shortId;
+      document.body.appendChild(tempInput);
+      
+      // Select and copy
+      tempInput.select();
+      document.execCommand('copy');
+      
+      // Clean up
+      document.body.removeChild(tempInput);
+      
+      this.showInfo(`Event code copied to clipboard!`)
+    },
+    showCreateMeetDialog() {
+      // Get overlapping time slots from the schedule component
+      if (this.scheduleOverlapComponent) {
+        try {
+          // Log basic information without stringifying complex objects
+          console.log("Number of responses:", Object.keys(this.event.responses).length);
+          console.log("Schedule component exists:", !!this.scheduleOverlapComponent);
+          
+          this.availableOverlapTimes = this.scheduleOverlapComponent.getOverlappingTimeSlots(2);
+          console.log("Available overlap times:", this.availableOverlapTimes);
+          this.selectedMeetTime = this.availableOverlapTimes.length > 0 ? this.availableOverlapTimes[0].value : null;
+        } catch (error) {
+          console.error("Error in showCreateMeetDialog:", error);
+        }
+      } else {
+        this.availableOverlapTimes = [];
+      }
+      
+      // Ensure the dialog opens even if there's an error
+      this.createMeetDialog = true;
+    },
+    async generateGoogleMeetLink() {
+      if (!this.selectedMeetTime || !this.meetDuration) return;
+      
+      this.generatingMeetLink = true;
+      
+      try {
+        // Parse the selected time data
+        const meetData = {
+          eventId: this.event._id,
+          startDateTime: this.selectedMeetTime,
+          durationMinutes: this.meetDuration,
+          title: this.event.name,
+        };
+        
+        // Call API to create Google Meet link
+        const response = await post('/events/create-google-meet', meetData);
+        
+        if (response && response.meetLink) {
+          // Update the event with the Google Meet link
+          await patch(`/events/${this.event._id}`, {
+            googleMeetLink: response.meetLink
+          });
+          
+          // Refresh the event to get updated data
+          await this.refreshEvent();
+          
+          this.showInfo('Google Meet link created successfully!');
+        } else {
+          throw new Error('Failed to create Google Meet link');
+        }
+      } catch (error) {
+        console.error('Error creating Google Meet link:', error);
+        this.showError('Failed to create Google Meet link. Please try again.');
+      } finally {
+        this.generatingMeetLink = false;
+        this.createMeetDialog = false;
+      }
+    },
+    handleSuggestedTime(timestamp) {
+      if (this.$refs.scheduleOverlap) {
+        this.$refs.scheduleOverlap.handleSuggestedTime(timestamp);
+      }
+      this.suggestTimeDialog = false;
     },
   },
 

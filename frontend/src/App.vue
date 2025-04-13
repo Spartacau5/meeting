@@ -10,65 +10,6 @@
       :no-tabs="newDialogOptions.eventOnly"
     />
     <UpvoteRedditSnackbar />
-    <div
-      v-if="showHeader"
-      class="tw-fixed tw-z-40 tw-h-14 tw-w-screen tw-bg-white sm:tw-h-16"
-      dark
-    >
-      <div
-        class="tw-relative tw-m-auto tw-flex tw-h-full tw-max-w-6xl tw-items-center tw-justify-center tw-px-4"
-      >
-        <router-link :to="{ name: 'home' }">
-          <Logo type="schej" />
-        </router-link>
-
-        <v-spacer />
-
-        <v-btn
-          v-if="$route.name === 'event'"
-          id="top-right-create-btn"
-          text
-          @click="() => createNew(true)"
-        >
-          Create an event
-        </v-btn>
-        <v-btn
-          v-if="showFeedbackBtn"
-          id="feedback-btn"
-          text
-          href="https://forms.gle/9AgRy4PQfWfVuBnw8"
-          target="_blank"
-        >
-          Give feedback
-        </v-btn>
-        <v-btn
-          v-if="!isPhone"
-          text
-          href="https://www.paypal.com/donate/?hosted_button_id=KWCH6LGJCP6E6"
-          target="_blank"
-        >
-          Donate
-        </v-btn>
-        <v-btn
-          v-if="$route.name === 'home' && !isPhone"
-          color="primary"
-          class="tw-mx-2 tw-rounded-md"
-          :style="{
-            boxShadow: '0px 2px 8px 0px rgba(59, 130, 246, 0.5) !important',
-          }"
-          @click="() => createNew()"
-        >
-          + Create new
-        </v-btn>
-        <div v-if="authUser" class="sm:tw-ml-4">
-          <AuthUserMenu />
-        </div>
-        <v-btn v-else id="top-right-sign-in-btn" text @click="signIn">
-          Sign in
-        </v-btn>
-      </div>
-    </div>
-
     <v-main>
       <div class="tw-flex tw-h-screen tw-flex-col">
         <div
@@ -263,7 +204,7 @@ export default {
     },
     routerViewClass() {
       let c = ""
-      if (this.showHeader) {
+      if (this.showHeader && this.$route.name !== "event" && this.$route.name !== "group") {
         if (this.isPhone) {
           c += "tw-pt-12 "
         } else {

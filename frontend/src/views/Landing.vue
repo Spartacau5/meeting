@@ -20,44 +20,74 @@
     <!-- Enhanced main content with gradient background -->
     <div class="tw-min-h-screen tw-bg-gradient-to-b tw-from-white tw-to-green/5">
       <div class="tw-max-w-6xl tw-mx-auto tw-px-4 tw-py-8">
-        <!-- Improved title section with animation -->
-        <div class="tw-text-center tw-mb-12">
-          <h1 class="tw-text-3xl md:tw-text-4xl tw-font-bold tw-mb-4">
-            <span class="tw-bg-gradient-to-r tw-from-[#0088FF] tw-to-[#0055FF] tw-bg-clip-text tw-text-transparent hover:tw-scale-105 tw-transition-transform tw-inline-block">
-              Meetings made easier
-            </span>
-          </h1>
-          <p class="tw-text-gray-600 tw-text-lg tw-max-w-2xl tw-mx-auto tw-leading-relaxed">
-            It's like a better When2Meet!
-          </p>
-        </div>
-
-        <!-- Main container with enhanced card design -->
-        <div class="tw-flex tw-flex-col md:tw-flex-row tw-justify-center tw-items-start tw-gap-16">
-          <!-- Left panel: Calendar with modern card design -->
-          <div class="tw-w-full md:tw-w-[42%] tw-mt-0">
-            <div v-if="isPhone" class="tw-text-center tw-mb-2">
-              <v-img
-                alt="Gatherly character"
-                src="@/assets/schejie/wave.png"
-                :height="45"
-                contain
-                class="tw-mx-auto"
-              />
-            </div>
-            <div>
-              <LandingPageCalendar />
+        <div class="tw-flex tw-flex-col md:tw-flex-row tw-justify-between tw-items-stretch tw-gap-8 tw-mt-4">
+          
+          <!-- Left panel: Create event card -->
+          <div class="tw-w-full md:tw-w-3/5 tw-flex tw-items-center">
+            <div class="tw-bg-white tw-rounded-xl tw-shadow-md tw-p-8 tw-h-auto tw-w-full tw-border tw-border-gray-100">
+              <div class="tw-flex tw-flex-col tw-items-center tw-text-center">
+                <div class="tw-mb-4 tw-w-16 tw-h-16 tw-rounded-full tw-bg-green/10 tw-flex tw-items-center tw-justify-center">
+                  <v-icon color="green" size="32">mdi-calendar-plus</v-icon>
+                </div>
+                
+                <h2 class="tw-text-2xl tw-font-medium tw-mb-3">Create an event</h2>
+                
+                <p class="tw-text-gray-600 tw-mb-6 tw-max-w-md">
+                  Schedule a meeting by finding the best time for everyone to meet. Create polls, sync with your calendar, and invite participants easily.
+                </p>
+                
+                <v-btn 
+                  color="success"
+                  class="tw-bg-green tw-text-white tw-w-full tw-py-6"
+                  elevation="2"
+                  x-large
+                  @click="newDialog = true"
+                >
+                  <span class="tw-text-base">Create New Event</span>
+                </v-btn>
+              </div>
             </div>
           </div>
 
-          <!-- Right panel: Event creation form with matching design -->
-          <div class="tw-w-full md:tw-w-[42%] tw-mt-0">
-            <div>
-              <NewEvent
-                :dialog="false"
-                :allow-notifications="false"
-                @signIn="signIn"
-              />
+          <!-- Right panel: Join event card -->
+          <div class="tw-w-full md:tw-w-2/5 tw-flex tw-items-center">
+            <div class="tw-bg-white tw-rounded-xl tw-shadow-md tw-p-8 tw-h-auto tw-w-full tw-border tw-border-gray-100">
+              <div class="tw-flex tw-flex-col tw-items-center tw-text-center">
+                <div class="tw-mb-4 tw-w-16 tw-h-16 tw-rounded-full tw-bg-blue/10 tw-flex tw-items-center tw-justify-center">
+                  <v-icon color="primary" size="32">mdi-login-variant</v-icon>
+                </div>
+                
+                <h2 class="tw-text-2xl tw-font-medium tw-mb-3">Join an event</h2>
+                
+                <p class="tw-text-gray-600 tw-mb-6 tw-max-w-xs">
+                  Enter the 4-letter code to join and add your availability to an existing event.
+                </p>
+                
+                <div class="tw-flex tw-flex-col tw-w-full tw-space-y-4">
+                  <v-text-field
+                    v-model="eventCode"
+                    label="Event Code"
+                    placeholder="Enter 4-letter code"
+                    outlined
+                    hide-details
+                    class="tw-mb-4"
+                    :class="{ 'error--text': codeError }"
+                    @keyup.enter="joinEvent"
+                    :error-messages="codeError ? 'Please enter a valid event code' : ''"
+                  ></v-text-field>
+                  
+                  <v-btn 
+                    color="primary"
+                    class="tw-bg-blue tw-text-white tw-w-full tw-py-6"
+                    :loading="joining"
+                    elevation="2"
+                    x-large
+                    @click="joinEvent"
+                  >
+                    <span class="tw-text-base">Join Event</span>
+                  </v-btn>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -141,7 +171,6 @@
 </style>
 
 <script>
-import LandingPageCalendar from "@/components/landing/LandingPageCalendar.vue"
 import { isPhone, signInGoogle } from "@/utils"
 import SignInGoogleBtn from "@/components/SignInGoogleBtn.vue"
 import NewEvent from "@/components/NewEvent.vue"
@@ -189,7 +218,6 @@ export default {
   },
 
   components: {
-    LandingPageCalendar,
     SignInGoogleBtn,
     NewEvent,
     NewDialog,
@@ -199,6 +227,9 @@ export default {
   data: () => ({
     signInDialog: false,
     newDialog: false,
+    eventCode: '',
+    codeError: false,
+    joining: false,
   }),
 
   computed: {
@@ -217,6 +248,30 @@ export default {
     redirectToPrivacyPolicy() {
       this.$router.push({ name: 'privacy-policy' })
     },
+    async joinEvent() {
+      // Reset error state
+      this.codeError = false;
+      
+      // Validate code format (4 letters/numbers)
+      if (!this.eventCode || this.eventCode.trim().length === 0) {
+        this.codeError = true;
+        return;
+      }
+      
+      const code = this.eventCode.trim().toUpperCase();
+      
+      this.joining = true;
+      
+      try {
+        // Navigate to the event page with the code
+        this.$router.push({ path: `/e/${code}` });
+      } catch (error) {
+        console.error('Error joining event:', error);
+        this.codeError = true;
+      } finally {
+        this.joining = false;
+      }
+    }
   }
 }
 </script>

@@ -378,14 +378,14 @@ export const getTimeOptions = () => {
 
   const times = []
   if (prefers12h) {
-    times.push({ text: "12 am", time: 0, value: 0 })
+    times.push({ text: "12:00 am", time: 0, value: 0 })
     for (let h = 1; h < 12; ++h) {
-      times.push({ text: `${h} am`, time: h, value: h })
+      times.push({ text: `${h}:00 am`, time: h, value: h })
     }
     for (let h = 0; h < 12; ++h) {
-      times.push({ text: `${h == 0 ? 12 : h} pm`, time: h + 12, value: h + 12 })
+      times.push({ text: `${h == 0 ? 12 : h}:00 pm`, time: h + 12, value: h + 12 })
     }
-    times.push({ text: "12 am", time: 0, value: 24 })
+    times.push({ text: "12:00 am", time: 0, value: 24 })
 
     return times
   }

@@ -1,403 +1,440 @@
 <template>
-  <div v-if="event" class="tw-mt-8 tw-h-full">
-    <!-- Mark availability option dialog -->
-    <MarkAvailabilityDialog
-      v-model="choiceDialog"
-      :initialState="linkApple ? 'create_account_apple' : 'choices'"
-      @signInLinkApple="signInLinkApple"
-      @allowGoogleCalendar="
-        () => setAvailabilityAutomatically(calendarTypes.GOOGLE)
-      "
-      @allowOutlookCalendar="
-        () => setAvailabilityAutomatically(calendarTypes.OUTLOOK)
-      "
-      @setAvailabilityManually="setAvailabilityManually"
-      @addedAppleCalendar="addedAppleCalendar"
-    />
-
-    <!-- Google sign in not supported dialog -->
-    <SignInNotSupportedDialog v-model="webviewDialog" />
-
-    <!-- Guest dialog -->
-    <GuestDialog
-      v-model="guestDialog"
-      @submit="handleGuestDialogSubmit"
-      :event="event"
-      :respondents="Object.keys(event.responses)"
-    />
-
-    <!-- Join sign up slot dialog-->
-    <SignUpForSlotDialog
-      v-if="currSignUpBlock"
-      v-model="signUpForSlotDialog"
-      :signUpBlock="currSignUpBlock"
-      @submit="signUpForBlock"
-      :event="event"
-    />
-
-    <!-- Edit event dialog -->
-    <NewDialog
-      v-model="editEventDialog"
-      :type="eventType"
-      :event="event"
-      :contactsPayload="contactsPayload"
-      edit
-      no-tabs
-    />
-
-    <!-- Group invitation dialog -->
-    <InvitationDialog
-      v-if="isGroup"
-      v-model="invitationDialog"
-      :group="event"
-      :calendarPermissionGranted="calendarPermissionGranted"
-      @refreshEvent="refreshEvent"
-      @setAvailabilityAutomatically="setAvailabilityAutomatically"
-    ></InvitationDialog>
-
-    <!-- Pages Not Visited dialog -->
-    <v-dialog
-      v-model="pagesNotVisitedDialog"
-      max-width="400"
-      content-class="tw-m-0"
-    >
-      <v-card>
-        <v-card-title>Are you sure?</v-card-title>
-        <v-card-text
-          ><span class="tw-font-medium"
-            >You're about to add your availability without filling out all pages
-            of this Gatherly.</span
+  <div>
+    <!-- Modern header with subtle shadow -->
+    <header v-if="!authUser" class="tw-bg-white tw-py-4 tw-px-4 tw-border-b tw-border-gray-100 tw-shadow-sm">
+      <div class="tw-max-w-6xl tw-mx-auto tw-flex tw-items-center tw-justify-between">
+        <router-link to="/" class="tw-no-underline">
+          <Logo type="gatherly" />
+        </router-link>
+        <div class="tw-flex tw-items-center tw-gap-4">
+          <v-btn text href="https://forms.gle/7iKpHRr1Adn7SWSS6" target="_blank" class="tw-text-gray-600 hover:tw-text-blue">Give Feedback</v-btn>
+          <v-btn 
+            outlined 
+            @click="signIn" 
+            class="tw-border-blue tw-text-blue hover:tw-bg-blue hover:tw-text-white tw-transition-colors"
           >
-          Click the left and right arrows at the top to switch between
-          pages.</v-card-text
-        >
-        <v-card-actions>
-          <v-spacer />
-          <v-btn text @click="pagesNotVisitedDialog = false">Cancel</v-btn>
-          <v-btn
-            text
-            color="primary"
-            @click="
-              () => {
-                saveChanges(true)
-                this.pagesNotVisitedDialog = false
-              }
-            "
-            >Add anyways</v-btn
-          >
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+            Sign in
+          </v-btn>
+        </div>
+      </div>
+    </header>
+    
+    <div v-if="event" class="tw-h-full">
+      <!-- Mark availability option dialog -->
+      <MarkAvailabilityDialog
+        v-model="choiceDialog"
+        :initialState="linkApple ? 'create_account_apple' : 'choices'"
+        @signInLinkApple="signInLinkApple"
+        @allowGoogleCalendar="
+          () => setAvailabilityAutomatically(calendarTypes.GOOGLE)
+        "
+        @allowOutlookCalendar="
+          () => setAvailabilityAutomatically(calendarTypes.OUTLOOK)
+        "
+        @setAvailabilityManually="setAvailabilityManually"
+        @addedAppleCalendar="addedAppleCalendar"
+      />
 
-    <div class="tw-mx-auto tw-mt-4 tw-max-w-5xl">
-      <div class="tw-mx-4">
-        <!-- Title and copy link -->
-        <div class="tw-flex tw-items-center tw-text-black">
-          <div>
-            <div
-              class="sm:mb-2 tw-flex tw-flex-wrap tw-items-center tw-gap-x-4 tw-gap-y-2"
+      <!-- Google sign in not supported dialog -->
+      <SignInNotSupportedDialog v-model="webviewDialog" />
+
+      <!-- Guest dialog -->
+      <GuestDialog
+        v-model="guestDialog"
+        @submit="handleGuestDialogSubmit"
+        :event="event"
+        :respondents="Object.keys(event.responses)"
+      />
+
+      <!-- Join sign up slot dialog-->
+      <SignUpForSlotDialog
+        v-if="currSignUpBlock"
+        v-model="signUpForSlotDialog"
+        :signUpBlock="currSignUpBlock"
+        @submit="signUpForBlock"
+        :event="event"
+      />
+
+      <!-- Edit event dialog -->
+      <NewDialog
+        v-model="editEventDialog"
+        :type="eventType"
+        :event="event"
+        :contactsPayload="contactsPayload"
+        edit
+        no-tabs
+      />
+
+      <!-- Group invitation dialog -->
+      <InvitationDialog
+        v-if="isGroup"
+        v-model="invitationDialog"
+        :group="event"
+        :calendarPermissionGranted="calendarPermissionGranted"
+        @refreshEvent="refreshEvent"
+        @setAvailabilityAutomatically="setAvailabilityAutomatically"
+      ></InvitationDialog>
+
+      <!-- Pages Not Visited dialog -->
+      <v-dialog
+        v-model="pagesNotVisitedDialog"
+        max-width="400"
+        content-class="tw-m-0"
+      >
+        <v-card>
+          <v-card-title>Are you sure?</v-card-title>
+          <v-card-text
+            ><span class="tw-font-medium"
+              >You're about to add your availability without filling out all pages
+              of this Gatherly.</span
             >
-              <div class="tw-text-xl sm:tw-text-3xl">{{ event.name }}</div>
-              <v-chip
-                v-if="event.when2meetHref?.length > 0"
-                :href="`https://when2meet.com${event.when2meetHref}`"
-                :small="isPhone"
-                class="tw-cursor-pointer tw-select-none tw-rounded tw-bg-light-gray tw-px-2 tw-font-medium sm:tw-px-3"
-                >Imported from when2meet</v-chip
-              >
-              <template v-if="isGroup">
-                <div class="">
-                  <v-chip
-                    :small="isPhone"
-                    class="tw-cursor-pointer tw-select-none tw-rounded tw-bg-light-gray tw-px-2 tw-font-medium sm:tw-px-3"
-                    @click="helpDialog = true"
-                    >Availability group</v-chip
-                  >
-                </div>
-                <HelpDialog v-model="helpDialog">
-                  <template v-slot:header>Availability group</template>
-                  <div class="mb-4">
-                    Use availability groups to see group members' weekly
-                    calendar availabilities from Google Calendar. Your actual
-                    calendar events are NOT visible to others.
-                  </div>
-                </HelpDialog>
-              </template>
-            </div>
-            <div class="tw-flex tw-items-baseline tw-gap-1">
+            Click the left and right arrows at the top to switch between
+            pages.</v-card-text
+          >
+          <v-card-actions>
+            <v-spacer />
+            <v-btn text @click="pagesNotVisitedDialog = false">Cancel</v-btn>
+            <v-btn
+              text
+              color="primary"
+              @click="
+                () => {
+                  saveChanges(true)
+                  this.pagesNotVisitedDialog = false
+                }
+              "
+              >Add anyways</v-btn
+            >
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
+
+      <div class="tw-mx-auto tw-mt-4 tw-max-w-5xl">
+        <div class="tw-mx-4">
+          <!-- Title and copy link -->
+          <div class="tw-flex tw-items-center tw-text-black">
+            <div>
               <div
-                class="tw-text-sm tw-font-normal tw-text-very-dark-gray sm:tw-text-base"
+                class="sm:mb-2 tw-flex tw-flex-wrap tw-items-center tw-gap-x-4 tw-gap-y-2"
               >
-                {{ dateString }}
+                <div class="tw-text-xl sm:tw-text-3xl">{{ event.name }}</div>
+                <v-chip
+                  v-if="event.when2meetHref?.length > 0"
+                  :href="`https://when2meet.com${event.when2meetHref}`"
+                  :small="isPhone"
+                  class="tw-cursor-pointer tw-select-none tw-rounded tw-bg-light-gray tw-px-2 tw-font-medium sm:tw-px-3"
+                  >Imported from when2meet</v-chip
+                >
+                <template v-if="isGroup">
+                  <div class="">
+                    <v-chip
+                      :small="isPhone"
+                      class="tw-cursor-pointer tw-select-none tw-rounded tw-bg-light-gray tw-px-2 tw-font-medium sm:tw-px-3"
+                      @click="helpDialog = true"
+                      >Availability group</v-chip
+                    >
+                  </div>
+                  <HelpDialog v-model="helpDialog">
+                    <template v-slot:header>Availability group</template>
+                    <div class="mb-4">
+                      Use availability groups to see group members' weekly
+                      calendar availabilities from Google Calendar. Your actual
+                      calendar events are NOT visible to others.
+                    </div>
+                  </HelpDialog>
+                </template>
               </div>
-              <template v-if="canEdit">
-                <v-btn
-                  id="edit-event-btn"
-                  @click="editEvent"
-                  class="tw-px-2 tw-text-sm tw-text-blue"
-                  text
+              <div class="tw-flex tw-items-baseline tw-gap-1">
+                <div
+                  class="tw-text-sm tw-font-normal tw-text-very-dark-gray sm:tw-text-base"
                 >
-                  Edit {{ isGroup ? "group" : "event" }}
-                </v-btn>
-              </template>
-            </div>
-          </div>
-          <v-spacer />
-          <div class="tw-flex tw-flex-row tw-items-center tw-gap-2.5">
-            <div v-if="isGroup">
-              <v-btn
-                v-if="weekOffset != 0"
-                :icon="isPhone"
-                text
-                class="tw-mr-1 tw-text-very-dark-gray sm:tw-mr-2.5"
-                @click="resetWeekOffset"
-              >
-                <v-icon class="sm:tw-mr-2">mdi-calendar-today</v-icon>
-                <span v-if="!isPhone">Today</span>
-              </v-btn>
-              <v-btn
-                :icon="isPhone"
-                :outlined="!isPhone"
-                class="tw-text-blue"
-                @click="refreshCalendar"
-                :loading="loading"
-              >
-                <v-icon class="tw-mr-1" v-if="!isPhone">mdi-refresh</v-icon>
-                <span v-if="!isPhone" class="tw-mr-2">Refresh</span>
-                <v-icon class="tw-text-blue" v-else>mdi-refresh</v-icon>
-              </v-btn>
-            </div>
-            <div v-else>
-              <div class="tw-flex tw-items-center">
-                <div 
-                  v-if="event.shortId" 
-                  class="tw-mr-2 tw-px-3 tw-py-1 tw-bg-gray-100 tw-rounded-md tw-cursor-pointer tw-flex tw-items-center"
-                  @click="copyLink"
-                  v-tooltip="'Click to copy event link'"
-                >
-                  <span class="tw-font-semibold">Code:</span> 
-                  <span class="tw-ml-1 tw-text-blue tw-font-mono">{{ event.shortId }}</span>
-                  <v-icon class="tw-ml-1 tw-text-blue tw-text-sm">mdi-content-copy</v-icon>
+                  {{ dateString }}
                 </div>
+                <template v-if="canEdit">
+                  <v-btn
+                    id="edit-event-btn"
+                    @click="editEvent"
+                    class="tw-px-2 tw-text-sm tw-text-blue"
+                    text
+                  >
+                    Edit {{ isGroup ? "group" : "event" }}
+                  </v-btn>
+                </template>
+              </div>
+            </div>
+            <v-spacer />
+            <div class="tw-flex tw-flex-row tw-items-center tw-gap-2.5">
+              <div v-if="isGroup">
+                <v-btn
+                  v-if="weekOffset != 0"
+                  :icon="isPhone"
+                  text
+                  class="tw-mr-1 tw-text-very-dark-gray sm:tw-mr-2.5"
+                  @click="resetWeekOffset"
+                >
+                  <v-icon class="sm:tw-mr-2">mdi-calendar-today</v-icon>
+                  <span v-if="!isPhone">Today</span>
+                </v-btn>
                 <v-btn
                   :icon="isPhone"
                   :outlined="!isPhone"
                   class="tw-text-blue"
-                  @click="copyLink"
+                  @click="refreshCalendar"
+                  :loading="loading"
                 >
-                  <span v-if="!isPhone" class="tw-mr-2 tw-text-blue"
-                    >Copy link</span
-                  >
-                  <v-icon class="tw-text-blue" v-if="!isPhone"
-                    >mdi-content-copy</v-icon
-                  >
-                  <v-icon class="tw-text-blue" v-else>mdi-share</v-icon>
+                  <v-icon class="tw-mr-1" v-if="!isPhone">mdi-refresh</v-icon>
+                  <span v-if="!isPhone" class="tw-mr-2">Refresh</span>
+                  <v-icon class="tw-text-blue" v-else>mdi-refresh</v-icon>
                 </v-btn>
               </div>
-            </div>
-            <div
-              v-if="!isPhone && (!isSignUp || canEdit)"
-              class="tw-flex tw-w-40"
-            >
-              <template v-if="!isEditing">
-                <v-btn
-                  v-if="!isGroup && !authUser && selectedGuestRespondent"
-                  min-width="10.25rem"
-                  class="tw-bg-blue tw-text-white tw-transition-opacity"
-                  :style="{ opacity: availabilityBtnOpacity }"
-                  @click="editGuestAvailability"
-                >
-                  {{
-                    event.blindAvailabilityEnabled
-                      ? "Edit availability"
-                      : `Edit ${selectedGuestRespondent}'s availability`
-                  }}
-                </v-btn>
-                <v-btn
-                  v-else
-                  width="10.25rem"
-                  class="tw-text-white tw-transition-opacity"
-                  :class="'tw-bg-blue'"
-                  :disabled="loading && !userHasResponded"
-                  :style="{ opacity: availabilityBtnOpacity }"
-                  @click="() => addAvailability()"
-                >
-                  {{ actionButtonText }}
-                </v-btn>
-              </template>
-              <template v-else>
-                <v-btn
-                  class="tw-mr-1 tw-w-20 tw-text-red"
-                  @click="cancelEditing"
-                  outlined
-                >
-                  Cancel
-                </v-btn>
-                <v-btn
-                  class="tw-w-20 tw-text-white"
-                  :class="'tw-bg-blue'"
-                  @click="() => saveChanges()"
-                >
-                  Save
-                </v-btn></template
+              <div v-else>
+                <div class="tw-flex tw-items-center">
+                  <div 
+                    v-if="event.shortId" 
+                    class="tw-mr-2 tw-px-3 tw-py-1 tw-bg-gray-100 tw-rounded-md tw-cursor-pointer tw-flex tw-items-center"
+                    @click="copyLink"
+                    v-tooltip="'Click to copy event link'"
+                  >
+                    <span class="tw-font-semibold">Code:</span> 
+                    <span class="tw-ml-1 tw-text-blue tw-font-mono">{{ event.shortId }}</span>
+                    <v-icon class="tw-ml-1 tw-text-blue tw-text-sm">mdi-content-copy</v-icon>
+                  </div>
+                  <v-btn
+                    :icon="isPhone"
+                    :outlined="!isPhone"
+                    class="tw-text-blue"
+                    @click="copyLink"
+                  >
+                    <span v-if="!isPhone" class="tw-mr-2 tw-text-blue"
+                      >Copy link</span
+                    >
+                    <v-icon class="tw-text-blue" v-if="!isPhone"
+                      >mdi-content-copy</v-icon
+                    >
+                    <v-icon class="tw-text-blue" v-else>mdi-share</v-icon>
+                  </v-btn>
+                </div>
+              </div>
+              <div
+                v-if="!isPhone && (!isSignUp || canEdit)"
+                class="tw-flex tw-w-40"
               >
+                <template v-if="!isEditing">
+                  <v-btn
+                    v-if="!isGroup && !authUser && selectedGuestRespondent"
+                    min-width="10.25rem"
+                    class="tw-bg-blue tw-text-white tw-transition-opacity"
+                    :style="{ opacity: availabilityBtnOpacity }"
+                    @click="editGuestAvailability"
+                  >
+                    {{
+                      event.blindAvailabilityEnabled
+                        ? "Edit availability"
+                        : `Edit ${selectedGuestRespondent}'s availability`
+                    }}
+                  </v-btn>
+                  <v-btn
+                    v-else
+                    width="10.25rem"
+                    class="tw-text-white tw-transition-opacity"
+                    :class="'tw-bg-blue'"
+                    :disabled="loading && !userHasResponded"
+                    :style="{ opacity: availabilityBtnOpacity }"
+                    @click="() => addAvailability()"
+                  >
+                    {{ actionButtonText }}
+                  </v-btn>
+                </template>
+                <template v-else>
+                  <v-btn
+                    class="tw-mr-1 tw-w-20 tw-text-red"
+                    @click="cancelEditing"
+                    outlined
+                  >
+                    Cancel
+                  </v-btn>
+                  <v-btn
+                    class="tw-w-20 tw-text-white"
+                    :class="'tw-bg-blue'"
+                    @click="() => saveChanges()"
+                  >
+                    Save
+                  </v-btn></template
+                >
+              </div>
             </div>
           </div>
+
+          <!-- Description -->
+          <EventDescription
+            :event.sync="event"
+            :canEdit="event.ownerId != 0 && canEdit"
+          />
         </div>
 
-        <!-- Description -->
-        <EventDescription
-          :event.sync="event"
-          :canEdit="event.ownerId != 0 && canEdit"
+        <!-- Calendar -->
+
+        <ScheduleOverlap
+          ref="scheduleOverlap"
+          :event="event"
+          :loadingCalendarEvents="loading"
+          :calendarEventsMap="calendarEventsMap"
+          :calendarPermissionGranted="calendarPermissionGranted"
+          :calendar-availabilities="calendarAvailabilities"
+          :weekOffset.sync="weekOffset"
+          :curGuestId="curGuestId"
+          :initial-timezone="initialTimezone"
+          :addingAvailabilityAsGuest="addingAvailabilityAsGuest"
+          @addAvailability="addAvailability"
+          @addAvailabilityAsGuest="addAvailabilityAsGuest"
+          @refreshEvent="refreshEvent"
+          @highlightAvailabilityBtn="highlightAvailabilityBtn"
+          @deleteAvailability="deleteAvailability"
+          @setCurGuestId="(id) => (curGuestId = id)"
+          @signUpForBlock="initiateSignUpFlow"
         />
       </div>
 
-      <!-- Calendar -->
+      <div class="tw-h-8"></div>
 
-      <ScheduleOverlap
-        ref="scheduleOverlap"
-        :event="event"
-        :loadingCalendarEvents="loading"
-        :calendarEventsMap="calendarEventsMap"
-        :calendarPermissionGranted="calendarPermissionGranted"
-        :calendar-availabilities="calendarAvailabilities"
-        :weekOffset.sync="weekOffset"
-        :curGuestId="curGuestId"
-        :initial-timezone="initialTimezone"
-        :addingAvailabilityAsGuest="addingAvailabilityAsGuest"
-        @addAvailability="addAvailability"
-        @addAvailabilityAsGuest="addAvailabilityAsGuest"
-        @refreshEvent="refreshEvent"
-        @highlightAvailabilityBtn="highlightAvailabilityBtn"
-        @deleteAvailability="deleteAvailability"
-        @setCurGuestId="(id) => (curGuestId = id)"
-        @signUpForBlock="initiateSignUpFlow"
-      />
-    </div>
-
-    <div class="tw-h-8"></div>
-
-    <!-- Bottom bar for phones -->
-    <div
-      v-if="isPhone && (!isSignUp || canEdit)"
-      class="tw-fixed tw-bottom-0 tw-z-20 tw-flex tw-h-16 tw-w-full tw-items-center tw-px-4"
-      :class="`${isIOS ? 'tw-pb-2' : ''} ${
-        isScheduling ? 'tw-bg-blue' : 'tw-bg-blue'
-      }`"
-    >
-      <template v-if="!isEditing && !isScheduling">
-        <div class="tw-text-white tw-flex tw-items-center">
-          <span class="tw-text-base">Responses ({{ numResponses }}/{{ event.maxRespondents || 0 }})</span>
-          <span v-if="numResponses === 0" class="tw-ml-2 tw-text-white/80 tw-text-sm">No responses yet!</span>
-        </div>
-        <v-spacer />
-        <v-btn
-          v-if="!isGroup && !authUser && selectedGuestRespondent"
-          class="tw-bg-white tw-text-blue tw-transition-opacity"
-          :style="{ opacity: availabilityBtnOpacity }"
-          @click="editGuestAvailability"
-        >
-          {{ mobileGuestActionButtonText }}
-        </v-btn>
-        <v-btn
-          v-else
-          class="tw-bg-white tw-text-blue tw-transition-opacity"
-          :disabled="loading && !userHasResponded"
-          :style="{ opacity: availabilityBtnOpacity }"
-          @click="() => addAvailability()"
-        >
-          {{ mobileActionButtonText }}
-        </v-btn>
-      </template>
-      <template v-else-if="isEditing">
-        <v-btn text class="tw-text-white" @click="cancelEditing">
-          Cancel
-        </v-btn>
-        <v-spacer />
-        <v-btn class="tw-bg-white tw-text-blue" @click="() => saveChanges()">
-          Save
-        </v-btn>
-      </template>
-      <template v-else-if="isScheduling">
-        <v-btn text class="tw-text-white" @click="cancelScheduleEvent">
-          Cancel
-        </v-btn>
-        <v-spacer />
-        <v-btn
-          :disabled="!allowScheduleEvent"
-          class="tw-bg-white tw-text-blue"
-          @click="confirmScheduleEvent"
-        >
-          Schedule
-        </v-btn>
-      </template>
-    </div>
-
-    <!-- Footer -->
-    <footer v-if="!isPhone" class="tw-bg-white tw-py-8 tw-border-t tw-border-gray-200">
-      <div class="tw-max-w-6xl tw-mx-auto tw-px-4">
-        <div class="tw-grid tw-grid-cols-1 tw-gap-8 md:tw-grid-cols-3">
-          <div>
-            <Logo type="gatherly" class="tw-mb-4" />
-            <p class="tw-text-gray-600">
-              Finding a time to meet, made simple.
-            </p>
+      <!-- Bottom bar for phones -->
+      <div
+        v-if="isPhone && (!isSignUp || canEdit)"
+        class="tw-fixed tw-bottom-0 tw-z-20 tw-flex tw-h-16 tw-w-full tw-items-center tw-px-4"
+        :class="`${isIOS ? 'tw-pb-2' : ''} ${
+          isScheduling ? 'tw-bg-blue' : 'tw-bg-blue'
+        }`"
+      >
+        <template v-if="!isEditing && !isScheduling">
+          <div class="tw-text-white tw-flex tw-items-center">
+            <span class="tw-text-base">Responses ({{ numResponses }}/{{ event.maxRespondents || 0 }})</span>
+            <span v-if="numResponses === 0" class="tw-ml-2 tw-text-white/80 tw-text-sm">No responses yet!</span>
           </div>
-          
-          <div>
-            <h3 class="tw-font-semibold tw-mb-4 tw-text-gray-800">Quick Links</h3>
-            <div class="tw-space-y-2">
-              <a href="#" @click.prevent="signIn" class="tw-block tw-text-gray-600 hover:tw-text-blue tw-transition-colors">
-                Sign In
-              </a>
-              <a href="https://docs.google.com/forms/d/e/1FAIpQLScHXWfH7o4sbFEo66A3vGGwK_PYi9loVxYaqt7Eb8X5zvGy1g/viewform" target="_blank" class="tw-block tw-text-gray-600 hover:tw-text-blue tw-transition-colors">
-                Give Feedback
-              </a>
+          <v-spacer />
+          <v-btn
+            v-if="!isGroup && !authUser && selectedGuestRespondent"
+            class="tw-bg-white tw-text-blue tw-transition-opacity"
+            :style="{ opacity: availabilityBtnOpacity }"
+            @click="editGuestAvailability"
+          >
+            {{ mobileGuestActionButtonText }}
+          </v-btn>
+          <v-btn
+            v-else
+            class="tw-bg-white tw-text-blue tw-transition-opacity"
+            :disabled="loading && !userHasResponded"
+            :style="{ opacity: availabilityBtnOpacity }"
+            @click="() => addAvailability()"
+          >
+            {{ mobileActionButtonText }}
+          </v-btn>
+        </template>
+        <template v-else-if="isEditing">
+          <v-btn text class="tw-text-white" @click="cancelEditing">
+            Cancel
+          </v-btn>
+          <v-spacer />
+          <v-btn class="tw-bg-white tw-text-blue" @click="() => saveChanges()">
+            Save
+          </v-btn>
+        </template>
+        <template v-else-if="isScheduling">
+          <v-btn text class="tw-text-white" @click="cancelScheduleEvent">
+            Cancel
+          </v-btn>
+          <v-spacer />
+          <v-btn
+            :disabled="!allowScheduleEvent"
+            class="tw-bg-white tw-text-blue"
+            @click="confirmScheduleEvent"
+          >
+            Schedule
+          </v-btn>
+        </template>
+      </div>
+
+      <!-- Footer -->
+      <footer v-if="!isPhone" class="tw-bg-white tw-py-8 tw-border-t tw-border-gray-200">
+        <div class="tw-max-w-6xl tw-mx-auto tw-px-4">
+          <div class="tw-grid tw-grid-cols-1 tw-gap-8 md:tw-grid-cols-3">
+            <div>
+              <router-link to="/" class="tw-no-underline">
+                <Logo type="gatherly" class="tw-mb-4" />
+              </router-link>
+              <p class="tw-text-gray-600">
+                Finding a time to meet, made simple.
+              </p>
+            </div>
+            
+            <div>
+              <h3 class="tw-font-semibold tw-mb-4 tw-text-gray-800">Quick Links</h3>
+              <div class="tw-space-y-2">
+                <a href="#" @click.prevent="signIn" class="tw-block tw-text-gray-600 hover:tw-text-blue tw-transition-colors">
+                  Sign In
+                </a>
+                <a href="https://docs.google.com/forms/d/e/1FAIpQLScHXWfH7o4sbFEo66A3vGGwK_PYi9loVxYaqt7Eb8X5zvGy1g/viewform" target="_blank" class="tw-block tw-text-gray-600 hover:tw-text-blue tw-transition-colors">
+                  Give Feedback
+                </a>
+              </div>
+            </div>
+            
+            <div>
+              <h3 class="tw-font-semibold tw-mb-4 tw-text-gray-800">Get Started</h3>
+              <v-btn
+                color="primary"
+                class="tw-rounded-lg tw-bg-blue tw-text-white hover:tw-bg-[#0055FF] tw-transition-colors"
+                @click="createNew"
+                elevation="2"
+              >
+                Create Event
+              </v-btn>
             </div>
           </div>
           
-          <div>
-            <h3 class="tw-font-semibold tw-mb-4 tw-text-gray-800">Get Started</h3>
-            <v-btn
-              color="primary"
-              class="tw-rounded-lg tw-bg-blue tw-text-white hover:tw-bg-[#0055FF] tw-transition-colors"
-              @click="createNew"
-              elevation="2"
-            >
-              Create Event
-            </v-btn>
+          <div class="tw-mt-8 tw-pt-6 tw-border-t tw-border-gray-200 tw-text-center tw-text-sm tw-text-gray-600">
+            © 2025 Arpit Ahluwalia. All rights reserved.
           </div>
         </div>
-        
-        <div class="tw-mt-8 tw-pt-6 tw-border-t tw-border-gray-200 tw-text-center tw-text-sm tw-text-gray-600">
-          © 2025 Arpit Ahluwalia. All rights reserved.
-        </div>
-      </div>
-    </footer>
+      </footer>
+    </div>
   </div>
 </template>
 
 <script>
+import { mapActions, mapGetters, mapMutations, mapState } from "vuex"
+import {
+  calendarTypes,
+  eventTypes,
+  guestUserId,
+  availabilityTypes,
+  errors,
+} from "@/constants"
 import {
   get,
+  patch,
+  put,
   post,
+  _delete,
+  isPhone,
+  isIOS,
   signInGoogle,
   signInOutlook,
-  isPhone,
+  parseGoogleAuthState,
+  copyToClipboard,
   processEvent,
-  getCalendarEventsMap,
-  getDateRangeStringForEvent,
-  isIOS,
-  isDstObserved,
 } from "@/utils"
-import { mapActions, mapState } from "vuex"
-
-import NewDialog from "@/components/NewDialog.vue"
+import isWebview from "is-ua-webview"
+import {
+  getDateRangeStringForEvent,
+  getCalendarEventsMap,
+  splitTimeBlocksByDay,
+  isDstObserved,
+} from "@/utils/date_utils"
+import { debounce } from "lodash"
 import ScheduleOverlap from "@/components/schedule_overlap/ScheduleOverlap.vue"
 import GuestDialog from "@/components/GuestDialog.vue"
 import SignUpForSlotDialog from "@/components/sign_up_form/SignUpForSlotDialog.vue"
-import { errors, authTypes, eventTypes, calendarTypes } from "@/constants"
-import isWebview from "is-ua-webview"
+import NewDialog from "@/components/NewDialog.vue"
 import SignInNotSupportedDialog from "@/components/SignInNotSupportedDialog.vue"
 import MarkAvailabilityDialog from "@/components/calendar_permission_dialogs/MarkAvailabilityDialog.vue"
 import InvitationDialog from "@/components/groups/InvitationDialog.vue"
@@ -1072,8 +1109,6 @@ export default {
     Promise.allSettled(promises).then(() => {
       this.loading = false
     })
-
-    this.initCalendar()
 
     document.title = `${this.event.name} - Gatherly`
   },

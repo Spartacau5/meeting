@@ -83,7 +83,12 @@
                   return-object
                   hide-details
                   solo
-                ></v-select>
+                  item-text="text"
+                >
+                  <template v-slot:selection="{ item }">
+                    {{ item.text }}
+                  </template>
+                </v-select>
                 <div>to</div>
                 <v-select
                   :value="endTime"
@@ -93,7 +98,12 @@
                   return-object
                   hide-details
                   solo
-                ></v-select>
+                  item-text="text"
+                >
+                  <template v-slot:selection="{ item }">
+                    {{ item.text }}
+                  </template>
+                </v-select>
               </div>
             </div>
           </v-expand-transition>

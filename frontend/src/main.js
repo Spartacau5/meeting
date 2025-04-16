@@ -27,6 +27,16 @@ Vue.use(VueMeta)
 // Workers
 Vue.use(VueWorker)
 
+// Register a global tooltip directive
+Vue.directive('tooltip', {
+  bind: function(el, binding) {
+    // Simple tooltip implementation
+    el.setAttribute('title', binding.value);
+    el.style.position = 'relative';
+    el.style.cursor = 'pointer';
+  }
+});
+
 Vue.config.productionTip = false
 
 new Vue({

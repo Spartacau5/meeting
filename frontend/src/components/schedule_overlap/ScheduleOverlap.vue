@@ -686,6 +686,7 @@
                 :show-event-options="showEventOptions"
                 :guestAddedAvailability="guestAddedAvailability"
                 :addingAvailabilityAsGuest="addingAvailabilityAsGuest"
+                :states="states"
                 @toggleShowEventOptions="toggleShowEventOptions"
                 @addAvailability="$emit('addAvailability')"
                 @addAvailabilityAsGuest="$emit('addAvailabilityAsGuest')"
@@ -2683,6 +2684,17 @@ export default {
           let max = this.respondents.length
           if (this.curRespondents.length > 0) {
             max = this.curRespondents.length
+          }
+
+          // For BEST_TIMES, only show time slots with high availability
+          if (this.state === this.states.BEST_TIMES) {
+            // Calculate the threshold for showing best times (75% of max or at least half of respondents)
+            const threshold = Math.max(Math.ceil(max * 0.75), Math.ceil(max / 2));
+            
+            // Hide time slots that don't meet the threshold
+            if (numRespondents < threshold) {
+              return { class: c, style: s }; // Return with default background color
+            }
           }
 
           // Determine color of timeslot based on number of people available

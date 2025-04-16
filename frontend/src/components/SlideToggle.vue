@@ -47,9 +47,9 @@ export default {
     return {
       index: 0,
 
-      defaultActiveClass: "tw-text-green tw-bg-green/5",
-      defaultBorderClass: "tw-border-green",
-      defaultBorderStyle: { boxShadow: "0px 2px 8px 0px #00994C40" },
+      defaultActiveClass: "tw-text-blue tw-bg-blue/5",
+      defaultBorderClass: "tw-border-blue",
+      defaultBorderStyle: { boxShadow: "0px 2px 8px 0px #006BE840" },
       inactiveClass: "tw-text-dark-gray tw-bg-off-white",
     }
   },

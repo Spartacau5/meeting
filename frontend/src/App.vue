@@ -116,7 +116,7 @@ html {
   transform: scale(80%) !important;
 }
 .v-input--switch__track.primary--text {
-  border: 2px theme("colors.light-green") solid !important;
+  border: 2px theme("colors.light-blue") solid !important;
 }
 .v-input--switch__track {
   border: 2px theme("colors.gray") solid !important;
@@ -124,7 +124,7 @@ html {
   box-shadow: 0px 0.74px 4.46px 0px rgba(0, 0, 0, 0.1) !important;
 }
 .v-input--is-label-active .v-input--switch__track {
-  background-color: currentColor !important;
+  background-color: theme("colors.blue") !important;
   box-shadow: 0px 1.5px 4.5px 0px rgba(0, 0, 0, 0.2) !important;
 }
 .v-input--switch--inset .v-input--switch__track,

@@ -1,0 +1,47 @@
+# Use an official Go 1.22 runtime as a parent image
+FROM golang:1.22 AS builder
+
+# Set the working directory in the container
+WORKDIR /app
+
+# Copy go.mod and go.sum files
+COPY go.mod go.sum ./
+
+# Download all dependencies
+RUN go mod download
+RUN go mod tidy
+
+# Copy the source code
+COPY . .
+
+# Build the application with proper configuration
+# Using -ldflags to reduce binary size and add build info
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o server .
+
+# Use a smaller base image for the final stage
+FROM debian:bullseye-slim
+
+# Install CA certificates
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+
+# Set the working directory
+WORKDIR /app
+
+# Copy the binary from the builder stage
+COPY --from=builder /app/server /app/
+COPY .env /app/
+COPY verdant-coyote-455921-h1-22d94077f635.json /app/
+
+# Make the binary executable
+RUN chmod +x /app/server
+
+# Set environment variables for Cloud Run
+ENV K_SERVICE=bettermeet-server
+ENV PORT=8080
+ENV GOOGLE_APPLICATION_CREDENTIALS="/app/verdant-coyote-455921-h1-22d94077f635.json"
+
+# Expose the port
+EXPOSE 8080
+
+# Run the binary
+CMD ["/app/server", "-release"]

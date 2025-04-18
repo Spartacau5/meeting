@@ -87,7 +87,7 @@ func main() {
 
 	// Cors
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:8080", "http://192.168.1.159:8080"},
+		AllowOrigins:     []string{"*"}, // Allow all origins for cloud deployment
 		AllowMethods:     []string{"GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization", "accept", "origin", "Cache-Control", "X-Requested-With", "Cookie"},
 		ExposeHeaders:    []string{"Content-Length", "Content-Type", "Set-Cookie"},
@@ -124,26 +124,49 @@ func main() {
 	routes.InitAnalytics(apiRouter)
 	slackbot.InitSlackbot(apiRouter)
 
-	err = filepath.WalkDir("../frontend/dist", func(path string, d fs.DirEntry, err error) error {
-		if !d.IsDir() && d.Name() != "index.html" {
-			split := splitPath(path)
-			newPath := filepath.Join(split[3:]...)
-			router.StaticFile(fmt.Sprintf("/%s", newPath), path)
+	// Check if running in Cloud Run
+	if os.Getenv("K_SERVICE") != "" {
+		// Skip trying to serve frontend files when running in Cloud Run
+		log.Println("Running in Cloud Run, skipping frontend file serving")
+	} else {
+		// Only try to load frontend files when running locally
+		err = filepath.WalkDir("../frontend/dist", func(path string, d fs.DirEntry, err error) error {
+			if !d.IsDir() && d.Name() != "index.html" {
+				split := splitPath(path)
+				newPath := filepath.Join(split[3:]...)
+				router.StaticFile(fmt.Sprintf("/%s", newPath), path)
+			}
+			return nil
+		})
+		if err != nil {
+			log.Printf("Warning: failed to walk directories: %s", err)
 		}
-		return nil
-	})
-	if err != nil {
-		log.Fatalf("failed to walk directories: %s", err)
-	}
 
-	router.LoadHTMLFiles("../frontend/dist/index.html")
-	router.NoRoute(noRouteHandler())
+		router.LoadHTMLFiles("../frontend/dist/index.html")
+		router.NoRoute(noRouteHandler())
+	}
 
 	// Init swagger documentation
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerfiles.Handler))
 
+	// Add a health check endpoint
+	router.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status": "ok",
+			"message": "Server is healthy",
+		})
+	})
+
+	// Print startup information
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	log.Printf("Starting server on port %s", port)
+
 	// Run server
-	router.Run(":3002")
+	log.Printf("Listening on port %s", port)
+	router.Run(fmt.Sprintf(":%s", port))
 }
 
 // Load .env variables
@@ -151,7 +174,7 @@ func loadDotEnv() {
 	err := godotenv.Load(".env")
 
 	if err != nil {
-		logger.StdErr.Panicln("Error loading .env file")
+		log.Println("Warning: Error loading .env file, using environment variables")
 	}
 }
 

@@ -1,0 +1,40 @@
+steps:
+  # Use Google's official Go builder
+  - name: 'gcr.io/cloud-builders/go'
+    args: ['build', '-o', 'server']
+    dir: 'server'
+    env: ['GOPATH=/workspace/gopath']
+    id: 'build-server'
+  
+  # Create a minimal Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: [
+      'build', 
+      '-t', 'gcr.io/$PROJECT_ID/bettermeet-server', 
+      '--build-arg', 'SERVER_PATH=server/server',
+      '-f', 'server.Dockerfile', 
+      '.'
+    ]
+    id: 'docker-build'
+  
+  # Push the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/bettermeet-server']
+    id: 'push-image'
+  
+  # Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
+    args: [
+      'run', 'deploy', 'bettermeet-server',
+      '--image', 'gcr.io/$PROJECT_ID/bettermeet-server',
+      '--region', 'us-central1',
+      '--platform', 'managed',
+      '--allow-unauthenticated'
+    ]
+    id: 'deploy-server'
+
+images:
+  - 'gcr.io/$PROJECT_ID/bettermeet-server'
+
+timeout: '1800s' 

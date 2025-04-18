@@ -839,7 +839,8 @@ export default {
     },
     copyLink() {
       /* Copies event link to clipboard */
-      const url = `${window.location.origin}/e/${this.event.shortId ?? this.event._id}`;
+      // Ensure the hash is included in the copied URL for hash-based routing
+      const url = `${window.location.origin}/#/e/${this.event.shortId ?? this.event._id}`;
       
       // Create temporary input element
       const tempInput = document.createElement('input');

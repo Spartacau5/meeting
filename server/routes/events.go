@@ -5,21 +5,26 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	googlecalendar "google.golang.org/api/calendar/v3"
 	"schej.it/server/db"
 	"schej.it/server/errs"
 	"schej.it/server/logger"
 	"schej.it/server/middleware"
 	"schej.it/server/models"
 	"schej.it/server/responses"
+	"schej.it/server/services/auth"
 	"schej.it/server/services/calendar"
 	"schej.it/server/services/gcloud"
+	"schej.it/server/services/google_api"
 	"schej.it/server/services/listmonk"
 	"schej.it/server/slackbot"
 	"schej.it/server/utils"
@@ -94,9 +99,24 @@ func createEvent(c *gin.Context) {
 		Attendees []string `json:"attendees"`
 	}{}
 	if err := c.Bind(&payload); err != nil {
-		fmt.Println(err)
+		fmt.Println("Bind error:", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	
+	// Log the MongoDB connection string (without credentials)
+	mongoURI := os.Getenv("MONGODB_URI")
+	if mongoURI != "" {
+		parts := strings.Split(mongoURI, "@")
+		if len(parts) > 1 {
+			fmt.Println("Using MongoDB URI with host:", parts[1])
+		} else {
+			fmt.Println("MongoDB URI format appears invalid")
+		}
+	} else {
+		fmt.Println("MongoDB URI environment variable is not set")
+	}
+	
 	session := sessions.Default(c)
 
 	// If user logged in, set owner id to their user id, otherwise set owner id to nil
@@ -107,8 +127,10 @@ func createEvent(c *gin.Context) {
 	if signedIn {
 		ownerId = utils.StringToObjectID(userId)
 		user = db.GetUserById(userId)
+		fmt.Println("Signed in user:", userId)
 	} else {
 		ownerId = primitive.NilObjectID
+		fmt.Println("Creating event as guest user")
 	}
 
 	// Construct event object
@@ -164,24 +186,6 @@ func createEvent(c *gin.Context) {
 		attendees := make([]models.Attendee, 0)
 
 		if signedIn {
-			// 	// Add event owner to group by default
-			// 	enabledCalendars := make(map[string][]string)
-			// 	for email, calendarAccount := range user.CalendarAccounts {
-			// 		if utils.Coalesce(calendarAccount.Enabled) {
-			// 			enabledCalendars[email] = make([]string, 0)
-			// 			for calendarId, subCalendar := range utils.Coalesce(calendarAccount.SubCalendars) {
-			// 				if utils.Coalesce(subCalendar.Enabled) {
-			// 					enabledCalendars[email] = append(enabledCalendars[email], calendarId)
-			// 				}
-			// 			}
-			// 		}
-			// 	}
-			// 	event.Responses[user.Id.Hex()] = &models.Response{
-			// 		UserId:                  user.Id,
-			// 		UseCalendarAvailability: utils.TruePtr(),
-			// 		EnabledCalendars:        &enabledCalendars,
-			// 	}
-
 			// Add owner as attendee
 			attendees = append(attendees, models.Attendee{Email: user.Email, Declined: utils.FalsePtr()})
 		}
@@ -213,11 +217,16 @@ func createEvent(c *gin.Context) {
 	}
 
 	// Insert event
+	fmt.Println("Inserting event into database...")
 	result, err := db.EventsCollection.InsertOne(context.Background(), event)
 	if err != nil {
-		logger.StdErr.Panicln(err)
+		fmt.Println("Database error:", err)
+		logger.StdErr.Println("Failed to insert event:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create event: " + err.Error()})
+		return
 	}
 	insertedId := result.InsertedID.(primitive.ObjectID).Hex()
+	fmt.Println("Successfully inserted event with ID:", insertedId)
 
 	// Send slackbot message
 	var creator string
@@ -1279,69 +1288,124 @@ func duplicateEvent(c *gin.Context) {
 func createGoogleMeet(c *gin.Context) {
 	var req CreateGoogleMeetRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body: " + err.Error()})
 		return
 	}
-	
-	// Get the authenticated user
-	userIdObj, _ := c.Get("userId")
-	userIdStr := userIdObj.(string)
-	
-	// Verify the event exists and the user has permission to modify it
+
+	// Get the authenticated user from context (set by AuthRequired middleware)
+	userInterface, exists := c.Get("authUser")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, responses.Error{Error: errs.NotSignedIn})
+		return
+	}
+	user := userInterface.(*models.User)
+
+	// Verify the event exists
 	event := db.GetEventById(req.EventId)
 	if event == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Event not found"})
 		return
 	}
-	
-	// For now, only the event owner can create a Google Meet link
-	ownerId := event.OwnerId
-	userId := utils.StringToObjectID(userIdStr)
-	if ownerId != userId {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Only the event owner can create a Google Meet link"})
+
+	// Verify user owns the event
+	if event.OwnerId != user.Id {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Only the event owner can create a Google Meet link for this event"})
 		return
 	}
-	
-	// Parse the start date/time
+
+	// --- Find the user's Google Calendar Account ---
+	var googleAccount *models.CalendarAccount
+	var googleAccountAuth *models.OAuth2CalendarAuth
+	for _, account := range user.CalendarAccounts {
+		if account.CalendarType == models.GoogleCalendarType && account.OAuth2CalendarAuth != nil {
+			googleAccount = &account // Keep a pointer to the account
+			googleAccountAuth = account.OAuth2CalendarAuth
+			break
+		}
+	}
+
+	if googleAccountAuth == nil || googleAccountAuth.RefreshToken == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "User does not have a linked Google Calendar account with necessary permissions"})
+		return
+	}
+
+	// --- Refresh Token if Necessary (using existing auth service) ---
+	// The google_api.GetCalendarService helper already handles token refresh via the token source
+	// However, we might need to update the stored token if it was refreshed.
+	// Let's call RefreshUserTokenIfNecessary first to be safe and ensure DB is updated.
+	accountKey := utils.GetCalendarAccountKey(googleAccount.Email, models.GoogleCalendarType)
+	auth.RefreshUserTokenIfNecessary(user, models.Set[string]{accountKey: {}})
+	// Re-fetch the potentially updated auth info from the user object
+	googleAccountAuth = user.CalendarAccounts[accountKey].OAuth2CalendarAuth
+	if googleAccountAuth == nil || googleAccountAuth.RefreshToken == "" {
+		// If refresh failed or token is still missing
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to refresh Google authentication token"})
+		return
+	}
+
+
+	// --- Create Google Calendar Service Client ---
+	calendarService, err := google_api.GetCalendarService(googleAccountAuth.RefreshToken)
+	if err != nil {
+		logger.StdErr.Printf("Error creating calendar service for user %s: %v", user.Id.Hex(), err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not connect to Google Calendar"})
+		return
+	}
+
+	// --- Parse Start/End Times ---
 	startTime, err := time.Parse(time.RFC3339, req.StartDateTime)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid start date/time format"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid start date/time format: " + err.Error()})
 		return
 	}
-	
-	// Calculate the end time based on duration
 	endTime := startTime.Add(time.Duration(req.DurationMinutes) * time.Minute)
-	
-	// Format dates for Google Calendar API
-	startTimeStr := startTime.Format(time.RFC3339)
-	endTimeStr := endTime.Format(time.RFC3339)
-	
-	// Create a simple Google Meet link using the event ID and timestamp
-	// In a production environment, this would use the Google Calendar API
-	// to create an actual calendar event with a Meet link
-	
-	// Generate a unique ID for the meeting
-	sanitizedTitle := strings.ToLower(strings.Replace(req.Title, " ", "-", -1))
-	if len(sanitizedTitle) > 10 {
-		sanitizedTitle = sanitizedTitle[:10]
-	}
-	timestamp := fmt.Sprintf("%x", time.Now().Unix())[:8]
-	
-	meetLink := fmt.Sprintf("https://meet.google.com/%s-%s", 
-		sanitizedTitle,
-		timestamp)
-	
-	// For a full integration, you would:
-	// 1. Use Google Calendar API to create an event with conferenceData
-	// 2. Request a Google Meet link to be attached to the event
-	// 3. Return the actual Meet link from the response
 
-	// For demonstration purposes only, we're creating a link format manually
-	
+	// --- Prepare Calendar Event Resource ---
+	calendarEvent := &googlecalendar.Event{
+		Summary: req.Title,
+		Start: &googlecalendar.EventDateTime{
+			DateTime: startTime.Format(time.RFC3339),
+			// Add TimeZone if available/needed
+		},
+		End: &googlecalendar.EventDateTime{
+			DateTime: endTime.Format(time.RFC3339),
+			// Add TimeZone if available/needed
+		},
+		ConferenceData: &googlecalendar.ConferenceData{
+			CreateRequest: &googlecalendar.CreateConferenceRequest{
+				RequestId: uuid.New().String(), // Generate unique request ID
+				ConferenceSolutionKey: &googlecalendar.ConferenceSolutionKey{
+					Type: "hangoutsMeet",
+				},
+			},
+		},
+	}
+
+	// --- Insert Event into Google Calendar ---
+	// Use "primary" calendar ID for the user's main calendar
+	calendarId := "primary"
+	// conferenceDataVersion=1 is crucial to get the Meet link back
+	createdEvent, err := calendarService.Events.Insert(calendarId, calendarEvent).ConferenceDataVersion(1).Do()
+	if err != nil {
+		logger.StdErr.Printf("Error inserting event into Google Calendar for user %s: %v", user.Id.Hex(), err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create Google Calendar event: " + err.Error()})
+		return
+	}
+
+	// --- Extract Meet Link ---
+	if createdEvent.ConferenceData == nil || createdEvent.HangoutLink == "" {
+		logger.StdErr.Printf("Google Calendar event created but missing HangoutLink for user %s, Event ID: %s", user.Id.Hex(), createdEvent.Id)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve Google Meet link after creating event"})
+		return
+	}
+
+	meetLink := createdEvent.HangoutLink
+	logger.StdOut.Printf("Successfully created Google Meet link for user %s: %s", user.Id.Hex(), meetLink)
+
 	c.JSON(http.StatusOK, gin.H{
 		"meetLink": meetLink,
-		"startTime": startTimeStr,
-		"endTime": endTimeStr,
+		"startTime": startTime.Format(time.RFC3339), // Return consistent format
+		"endTime": endTime.Format(time.RFC3339),     // Return consistent format
 	})
 }
 

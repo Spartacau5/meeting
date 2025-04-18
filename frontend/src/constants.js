@@ -1,6 +1,14 @@
 // Urls
 export const serverURL =
-  process.env.NODE_ENV === "development" ? "http://localhost:3002/api" : "/api"
+  process.env.NODE_ENV === "development" 
+    ? "http://localhost:3002/api" 
+    : process.env.VUE_APP_API_URL || "/api"
+
+// Add a direct reference to the backend URL for easier access
+// Try the local API endpoint instead of the Google Cloud Run endpoint which seems to be having issues
+export const backendURL = process.env.NODE_ENV === "development" 
+  ? "http://localhost:3002/api"
+  : "/api"
 
 // Errors enum
 export const errors = Object.freeze({

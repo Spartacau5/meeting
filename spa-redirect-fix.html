@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>BetterMeet Redirecting...</title>
+  <script>
+    // This script handles redirecting to the proper hash route
+    // For SPA routing on Google Cloud Storage
+    
+    // Extract the path from the URL
+    const path = window.location.pathname.replace(/^\//, '');
+    
+    // If there's a path (not just root), redirect to the SPA with the path as hash route
+    if (path && path !== 'index.html' && path !== '404.html') {
+      // Create root URL without trailing slash
+      const rootUrl = window.location.origin + (window.location.pathname.startsWith('/') ? '' : '/') + 
+                      window.location.pathname.split('/')[0];
+      
+      // Redirect to the SPA with the path as a hash route
+      window.location.replace(rootUrl + '#/' + path);
+    } else {
+      // Otherwise, just go to the main app
+      window.location.replace(window.location.origin + '/index.html');
+    }
+  </script>
+</head>
+<body>
+  <p>Redirecting to BetterMeet...</p>
+</body>
+</html> 

@@ -13,11 +13,14 @@ RUN sed -i '/^toolchain/d' go.mod
 # Download all dependencies
 RUN go mod tidy && go mod download
 
-# Build the application
-RUN go build -o server .
+# Build the application with explicit GOOS and GOARCH for linux/amd64
+RUN GOOS=linux GOARCH=amd64 go build -o server .
+
+# Set environment variables
+ENV PORT=8080
+ENV MONGODB_URI="mongodb+srv://username:password@cluster.mongodb.net/gatherly?retryWrites=true&w=majority"
 
 # Expose port 8080
-ENV PORT=8080
 EXPOSE 8080
 
 # Run the executable

@@ -1707,7 +1707,7 @@ export default {
           if (this.availabilityType === availabilityTypes.IF_NEEDED) {
             return `Click and drag to add your "if needed" ${daysOrTimes} in yellow.`
           }
-          return `Click and drag to add your "available" ${daysOrTimes} in green.`
+          return `Click and drag to add your "available" ${daysOrTimes} in blue.`
         case this.states.SCHEDULE_EVENT:
           return "Click and drag on the calendar to schedule a Google Calendar event during those times."
         default:
@@ -1879,7 +1879,15 @@ export default {
       const elapsed = (Date.now() - this.selectedSuggestedTime) / 1000; // seconds elapsed
       const duration = 5; // total duration in seconds
       return Math.max(0, 1 - (elapsed / duration));
-    }
+    },
+    instructionText() {
+      const daysOrTimes = this.event.daysOnly ? "days" : "times"
+      if (this.showIfNeeded) {
+        return `Click and drag to add your "if needed" ${daysOrTimes} in yellow.`
+      } else {
+        return `Click and drag to add your "available" ${daysOrTimes} in blue.`
+      }
+    },
   },
   methods: {
     ...mapMutations(["setAuthUser"]),

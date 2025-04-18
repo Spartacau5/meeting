@@ -67,3 +67,26 @@ cd server && go run main.go
 ### MongoDB Backup and Restore
 - Run `mongodump --host="localhost:27017" --db=gatherly` to make a backup
 - Run `mongorestore --uri mongodb://localhost:27017 ./dump --drop` to restore
+
+## Deployment
+
+### Google Cloud Storage Frontend Hosting
+This project uses Google Cloud Storage (GCS) for hosting the frontend. 
+
+#### Maintenance Scripts
+There are two scripts for managing the frontend deployment:
+
+1. **maintain-frontend-hosting.sh**
+   - Fixes the XML error by ensuring proper web hosting configuration
+   - Sets the correct content type for index.html
+   - Updates CORS configuration
+   - Run this script whenever you see the XML error: `./maintain-frontend-hosting.sh`
+
+2. **deploy-frontend-with-config.sh**
+   - Builds the frontend
+   - Uploads files to GCS
+   - Sets all required configurations in one step
+   - Use this for deployments: `./deploy-frontend-with-config.sh`
+
+#### GCS XML Error
+If you see an XML file listing instead of your web application, it's because the GCS bucket's web configuration has reset. Run `./maintain-frontend-hosting.sh` to fix it.

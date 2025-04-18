@@ -1,0 +1,15 @@
+{
+  "projects": {
+    "default": "verdant-coyote-455921-h1"
+  },
+  "targets": {
+    "verdant-coyote-455921-h1": {
+      "hosting": {
+        "gatherly": [
+          "verdant-coyote-455921-h1"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

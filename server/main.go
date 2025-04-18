@@ -87,7 +87,7 @@ func main() {
 
 	// Cors
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"*"}, // Allow all origins for cloud deployment
+		AllowOrigins:     []string{"https://verdant-coyote-455921-h1.web.app", "http://localhost:8080", "http://localhost:3000"},
 		AllowMethods:     []string{"GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization", "accept", "origin", "Cache-Control", "X-Requested-With", "Cookie"},
 		ExposeHeaders:    []string{"Content-Length", "Content-Type", "Set-Cookie"},

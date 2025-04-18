@@ -458,6 +458,17 @@ export default {
     initialEventData: {},
 
     hasMounted: false,
+
+    dayIndexToDayString: [
+      "2018-06-17", // Sunday
+      "2018-06-18", // Monday
+      "2018-06-19", // Tuesday
+      "2018-06-20", // Wednesday
+      "2018-06-21", // Thursday
+      "2018-06-22", // Friday
+      "2018-06-23", // Saturday
+      "2018-06-24", // Sunday (for Monday-based week)
+    ],
   }),
 
   mounted() {
@@ -549,85 +560,76 @@ export default {
     },
     submit() {
       if (!this.$refs.form.validate()) return
-
-      this.selectedDays.sort()
-
-      // Get duration of event
+      
+      this.loading = true
       let duration = this.endTime - this.startTime
+      // Fix duration calculation if it wraps around midnight
       if (duration <= 0) duration += 24
+      
+      console.log("Start time:", this.startTime, "End time:", this.endTime, "Duration:", duration)
+      
+      let type
+      let dates
 
-      // Get date objects for each selected day
-      let dates = []
-      let type = ""
-      if (this.daysOnly) {
-        duration = 0
-        type = eventTypes.SPECIFIC_DATES
+      // Set the formattedDates variable for tracking with posthog
+      let formattedDates
 
-        for (const day of this.selectedDays) {
-          const date = new Date(`${day} 00:00:00Z`)
-          dates.push(date)
+      if (this.selectedDateOption === this.dateOptions.SPECIFIC) {
+        type = this.daysOnly ? eventTypes.SPECIFIC_DATES : eventTypes.SPECIFIC_DATES
+        // Deep copy selectedDays
+        const dateStrings = [...this.selectedDays]
+        dates = []
+        formattedDates = []
+
+        for (let dateString of dateStrings) {
+          const fullDate = this.getFullDate(dateString)
+          // Convert to MongoDB ISODate format (primitive.DateTime)
+          const isoDate = new Date(fullDate).toISOString()
+          dates.push(isoDate)
+          formattedDates.push(fullDate)
         }
       } else {
-        const startTimeString = timeNumToTimeString(this.startTime)
-        if (this.selectedDateOption === this.dateOptions.SPECIFIC) {
-          type = eventTypes.SPECIFIC_DATES
+        type = eventTypes.DOW
+        dates = []
+        formattedDates = []
 
-          for (const day of this.selectedDays) {
-            const date = dayjs.tz(
-              `${day} ${startTimeString}`,
-              this.timezone.value
-            )
-            dates.push(date.toDate())
-          }
-        } else if (this.selectedDateOption === this.dateOptions.DOW) {
-          type = eventTypes.DOW
-
-          this.selectedDaysOfWeek.sort((a, b) => a - b)
-          this.selectedDaysOfWeek = this.selectedDaysOfWeek.filter(
-            (dayIndex) => {
-              return this.startOnMonday ? dayIndex !== 0 : dayIndex !== 7
-            }
-          )
-          for (const dayIndex of this.selectedDaysOfWeek) {
-            const day = dayIndexToDayString[dayIndex]
-            let date = dayjs.tz(
-              `${day} ${startTimeString}`,
-              this.timezone.value
-            )
-
-            // Check if cur date is NOT in daylight savings time
-            // because the dow days ARE in daylight savings time
-            if (!moment().isDST()) {
-              // Add one hour if not in DST
-              date = date.add(1, "hour")
-            }
-
-            dates.push(date.toDate())
-          }
+        // Assuming this.selectedDaysOfWeek contains day indices
+        for (let dayIndex of this.selectedDaysOfWeek) {
+          // Get a consistent date string for this day of week
+          const dateString = dayIndexToDayString[dayIndex]
+          const fullDate = this.getFullDate(dateString)
+          // Convert to MongoDB ISODate format (primitive.DateTime)
+          const isoDate = new Date(fullDate).toISOString()
+          dates.push(isoDate)
+          formattedDates.push(fullDate)
         }
       }
 
-      this.loading = true
+      console.log("Dates being sent:", dates)
+      console.log("Event type:", type)
 
       const payload = {
         name: this.name,
-        duration: duration,
-        dates: dates,
+        duration,
+        dates,
+        type,
+        daysOnly: this.daysOnly,
         notificationsEnabled: this.notificationsEnabled,
         blindAvailabilityEnabled: this.blindAvailabilityEnabled,
-        daysOnly: this.daysOnly,
         remindees: this.emails,
-        type: type,
         sendEmailAfterXResponses: this.sendEmailAfterXResponsesEnabled
           ? parseInt(this.sendEmailAfterXResponses)
-          : -1,
-        collectEmails: this.collectEmails,
+          : null,
         startOnMonday: this.startOnMonday,
+        collectEmails: this.collectEmails,
       }
+      
+      console.log("Payload being sent:", JSON.stringify(payload))
+      
       const posthogPayload = {
         eventName: this.name,
         eventDuration: duration,
-        eventDates: JSON.stringify(dates),
+        eventDates: JSON.stringify(formattedDates),
         eventNotificationsEnabled: this.notificationsEnabled,
         eventBlindAvailabilityEnabled: this.blindAvailabilityEnabled,
         eventDaysOnly: this.daysOnly,
@@ -835,6 +837,16 @@ export default {
         this.sendEmailAfterXResponses !==
           this.initialEventData.sendEmailAfterXResponses
       )
+    },
+    getFullDate(dateString) {
+      // Helper method to convert a date string to a full date with the selected time
+      const startTimeString = this.timeNumToTimeString(this.startTime)
+      return `${dateString} ${startTimeString}`
+    },
+    
+    timeNumToTimeString(timeNum) {
+      // Convert time number (e.g., 14) to time string (e.g., "14:00")
+      return `${Math.floor(timeNum)}:00:00`
     },
   },
 

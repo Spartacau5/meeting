@@ -23,6 +23,7 @@ import (
 	"schej.it/server/services/gcloud"
 	"schej.it/server/slackbot"
 	"schej.it/server/utils"
+	"schej.it/server/services/auth"
 
 	swaggerfiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -103,16 +104,41 @@ func main() {
 	closeTasks := gcloud.InitTasks()
 	defer closeTasks()
 
+	// Initialize Firebase
+	logger.StdOut.Printf("Initializing Firebase authentication...")
+	if err := auth.InitFirebase(); err != nil {
+		logger.StdErr.Printf("Warning: Failed to initialize Firebase: %v", err)
+		logger.StdErr.Printf("Authentication with Firebase will not work!")
+	} else {
+		logger.StdOut.Printf("Firebase authentication initialized successfully")
+	}
+
 	// Session
 	store := cookie.NewStore([]byte("secret"))
-	store.Options(sessions.Options{
+	
+	// Determine if running in development mode
+	isDevelopment := os.Getenv("GIN_MODE") != "release"
+	
+	// Configure session cookies based on environment
+	sessionOptions := sessions.Options{
 		Path:     "/",
-		Domain:   "",
 		MaxAge:   86400 * 7, // 7 days
-		Secure:   false,     // Set to false for development
 		HttpOnly: true,
-		SameSite: http.SameSiteNoneMode,
-	})
+	}
+	
+	// In development, use SameSiteLaxMode with insecure cookies
+	if isDevelopment {
+		sessionOptions.SameSite = http.SameSiteLaxMode
+		sessionOptions.Secure = false
+		// When using different ports, the domain must be explicitly set for cookies to work
+		sessionOptions.Domain = "localhost"
+	} else {
+		// In production, use SameSiteNoneMode with secure cookies
+		sessionOptions.SameSite = http.SameSiteNoneMode
+		sessionOptions.Secure = true
+	}
+	
+	store.Options(sessionOptions)
 	router.Use(sessions.Sessions("session", store))
 
 	// Init routes
@@ -160,7 +186,7 @@ func main() {
 	// Print startup information
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080"
+		port = "3002"
 	}
 	log.Printf("Starting server on port %s", port)
 

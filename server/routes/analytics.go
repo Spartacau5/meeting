@@ -2,18 +2,45 @@
 package routes
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/bson"
+	"schej.it/server/db"
+	"schej.it/server/logger"
 	"schej.it/server/models"
 	"schej.it/server/slackbot"
 )
 
 func InitAnalytics(router *gin.RouterGroup) {
-	authRouter := router.Group("/analytics")
+	analyticsRouter := router.Group("/analytics")
 
-	authRouter.POST("/scanned-poster", scannedPoster)
+	analyticsRouter.POST("/scanned-poster", scannedPoster)
+	analyticsRouter.GET("/stats", getStats)
+}
+
+// Handler for GET /analytics/stats
+func getStats(c *gin.Context) {
+	userCount, err := db.UsersCollection.CountDocuments(context.Background(), bson.M{})
+	if err != nil {
+		logger.StdErr.Printf("Error counting users: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve user count"})
+		return
+	}
+
+	eventCount, err := db.EventsCollection.CountDocuments(context.Background(), bson.M{})
+	if err != nil {
+		logger.StdErr.Printf("Error counting events: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve event count"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"userCount":  userCount,
+		"eventCount": eventCount,
+	})
 }
 
 // @Summary Notifies us when poster QR code has been scanned

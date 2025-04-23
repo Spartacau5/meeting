@@ -6,6 +6,14 @@ module.exports = defineConfig({
   // pluginOptions: {
   devServer: {
     port: 8080,
+    host: 'localhost',
+    allowedHosts: 'all',
+    client: {
+      webSocketURL: 'ws://localhost:8080/ws',
+    },
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+    },
   },
   pwa: {
     name: 'BetterMeet',

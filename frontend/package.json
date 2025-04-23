@@ -14,6 +14,7 @@
     "copy-image-clipboard": "^2.1.2",
     "core-js": "^3.35.1",
     "dayjs": "^1.11.10",
+    "firebase": "^11.6.0",
     "html2canvas": "^1.4.1",
     "is-ua-webview": "^1.1.2",
     "moment": "^2.30.1",

@@ -9,6 +9,8 @@ import posthogPlugin from "./plugins/posthog"
 import VueGtm from "@gtm-support/vue2-gtm"
 import VueMeta from "vue-meta"
 import "./index.css"
+import { auth } from "./firebase"
+import { onAuthStateChanged } from "firebase/auth"
 
 // Posthog
 // if (process.env.NODE_ENV !== "development") {
@@ -36,6 +38,29 @@ Vue.directive('tooltip', {
     el.style.cursor = 'pointer';
   }
 });
+
+// Initialize Firebase Auth State Listener
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    // User is signed in, but we'll rely on our backend for user data
+    console.log("Firebase user signed in:", user.email)
+    
+    // If we don't have user data yet, fetch it from backend
+    if (!store.state.authUser) {
+      store.dispatch("refreshAuthUser").catch(err => {
+        console.error("Failed to refresh user data:", err)
+      })
+    }
+  } else {
+    // User is signed out
+    console.log("Firebase user signed out")
+    
+    // Clear user data if any exists
+    if (store.state.authUser) {
+      store.commit("setAuthUser", null)
+    }
+  }
+})
 
 Vue.config.productionTip = false
 

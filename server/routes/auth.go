@@ -32,11 +32,22 @@ type SignInRequest struct {
 	Origin         string              `json:"origin"`
 }
 
+// Add a new struct for Firebase sign-in request
+// FirebaseSignInRequest represents the payload for the Firebase sign-in endpoint
+type FirebaseSignInRequest struct {
+	IdToken        string              `json:"idToken" binding:"required"`
+	AccessToken    string              `json:"accessToken"` // Optional but useful for calendar access
+	RefreshToken   string              `json:"refreshToken"` // Optional but useful for refresh
+	CalendarType   models.CalendarType `json:"calendarType" binding:"required"`
+	TimezoneOffset int                 `json:"timezoneOffset" binding:"required"`
+}
+
 func InitAuth(router *gin.RouterGroup) {
 	authRouter := router.Group("/auth")
 
 	authRouter.POST("/sign-in", signIn)
 	authRouter.POST("/sign-in-mobile", signInMobile)
+	authRouter.POST("/sign-in-firebase", signInFirebase)
 	authRouter.POST("/sign-out", signOut)
 	authRouter.GET("/status", middleware.AuthRequired(), getStatus)
 }
@@ -114,6 +125,189 @@ func signInMobile(c *gin.Context) {
 	)
 
 	c.JSON(http.StatusOK, gin.H{})
+}
+
+// @Summary Sign in a user with Firebase
+// @Description Authenticates a user with Firebase Auth
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body FirebaseSignInRequest true "Firebase sign-in request"
+// @Success 200 {object} models.User
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /auth/sign-in-firebase [post]
+func signInFirebase(c *gin.Context) {
+	var req FirebaseSignInRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Verify the Firebase ID token
+	firebaseUser, err := auth.VerifyFirebaseIDToken(req.IdToken)
+	if err != nil {
+		logger.StdErr.Printf("Failed to verify Firebase ID token: %v", err)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid Firebase ID token"})
+		return
+	}
+
+	// Get user info from Firebase user record
+	userInfo := auth.GetFirebaseUserInfo(firebaseUser)
+	
+	// Create tokens object to use with existing signInHelper
+	tokens := auth.TokenResponse{
+		IdToken:      req.IdToken,
+		AccessToken:  req.AccessToken,
+		RefreshToken: req.RefreshToken,
+		// ExpiresIn is not directly available from Firebase token, use a reasonable default
+		ExpiresIn: 3600, // 1 hour
+	}
+	
+	// Use email address from verified Firebase user
+	email := firebaseUser.Email
+	
+	// Get access token expire time
+	accessTokenExpireDate := utils.GetAccessTokenExpireDate(tokens.ExpiresIn)
+
+	// Construct calendar auth object (if tokens are provided)
+	calendarAuth := models.OAuth2CalendarAuth{
+		AccessToken:           tokens.AccessToken,
+		AccessTokenExpireDate: primitive.NewDateTimeFromTime(accessTokenExpireDate),
+		RefreshToken:          tokens.RefreshToken,
+		Scope:                 "", // Firebase doesn't provide scope directly
+	}
+
+	primaryAccountKey := utils.GetCalendarAccountKey(email, req.CalendarType)
+
+	// Create user object to create new user or update existing user
+	userData := models.User{
+		Email:     email,
+		FirstName: userInfo.GivenName,
+		LastName:  userInfo.FamilyName,
+		Picture:   userInfo.Picture,
+
+		PrimaryAccountKey: &primaryAccountKey,
+
+		TimezoneOffset: req.TimezoneOffset,
+		TokenOrigin:    models.WEB, // Assuming web origin
+	}
+
+	// Set up calendar account if tokens are provided
+	if tokens.AccessToken != "" {
+		calendarAccount := models.CalendarAccount{
+			CalendarType:       req.CalendarType,
+			OAuth2CalendarAuth: &calendarAuth,
+
+			Email:   email,
+			Picture: userInfo.Picture,
+			Enabled: utils.TruePtr(),
+		}
+		calendarAccountKey := utils.GetCalendarAccountKey(email, req.CalendarType)
+
+		// Check if user exists
+		var userId primitive.ObjectID
+		findResult := db.UsersCollection.FindOne(context.Background(), bson.M{"email": email})
+		
+		// Handle user creation or update similar to signInHelper
+		if findResult.Err() == mongo.ErrNoDocuments {
+			// User doesn't exist, create new
+			userData.CalendarAccounts = map[string]models.CalendarAccount{
+				calendarAccountKey: calendarAccount,
+			}
+			
+			result, err := db.UsersCollection.InsertOne(context.Background(), userData)
+			if err != nil {
+				logger.StdErr.Printf("Failed to create user: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
+				return
+			}
+			
+			userId = result.InsertedID.(primitive.ObjectID)
+		} else {
+			// User exists, update
+			var user models.User
+			if err := findResult.Decode(&user); err != nil {
+				logger.StdErr.Printf("Failed to decode user: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read user data"})
+				return
+			}
+			
+			userId = user.Id
+			
+			// If user has custom name, do not override
+			if user.HasCustomName != nil && *user.HasCustomName {
+				userData.FirstName = ""
+				userData.LastName = ""
+			}
+			
+			// Set calendar account
+			userData.CalendarAccounts = user.CalendarAccounts
+			userData.CalendarAccounts[calendarAccountKey] = calendarAccount
+			
+			// Update user
+			_, err := db.UsersCollection.UpdateByID(context.Background(), userId, bson.M{"$set": userData})
+			if err != nil {
+				logger.StdErr.Printf("Failed to update user: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user"})
+				return
+			}
+		}
+		
+		userData.Id = userId
+	} else {
+		// No calendar tokens, just authenticate the user
+		var userId primitive.ObjectID
+		findResult := db.UsersCollection.FindOne(context.Background(), bson.M{"email": email})
+		
+		if findResult.Err() == mongo.ErrNoDocuments {
+			// Create a simple user without calendar accounts
+			result, err := db.UsersCollection.InsertOne(context.Background(), userData)
+			if err != nil {
+				logger.StdErr.Printf("Failed to create user: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
+				return
+			}
+			
+			userId = result.InsertedID.(primitive.ObjectID)
+		} else {
+			// User exists, update basic info
+			var user models.User
+			if err := findResult.Decode(&user); err != nil {
+				logger.StdErr.Printf("Failed to decode user: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read user data"})
+				return
+			}
+			
+			userId = user.Id
+			
+			// If user has custom name, do not override
+			if user.HasCustomName != nil && *user.HasCustomName {
+				userData.FirstName = ""
+				userData.LastName = ""
+			}
+			
+			// Keep existing calendar accounts
+			userData.CalendarAccounts = user.CalendarAccounts
+			
+			// Update user
+			_, err := db.UsersCollection.UpdateByID(context.Background(), userId, bson.M{"$set": userData})
+			if err != nil {
+				logger.StdErr.Printf("Failed to update user: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user"})
+				return
+			}
+		}
+		
+		userData.Id = userId
+	}
+
+	// Set session variables
+	session := sessions.Default(c)
+	session.Set("userId", userData.Id.Hex())
+	session.Save()
+
+	c.JSON(http.StatusOK, userData)
 }
 
 // Helper function to sign user in with the given parameters from the google oauth route

@@ -8,7 +8,7 @@
           <v-btn text href="https://forms.gle/7iKpHRr1Adn7SWSS6" target="_blank" class="tw-text-gray-700 hover:tw-text-blue tw-font-medium">Give Feedback</v-btn>
           <v-btn 
             outlined 
-            @click="signIn" 
+            @click="handleSignIn" 
             class="tw-border-blue tw-text-blue hover:tw-bg-blue hover:tw-text-white tw-transition-colors tw-shadow-sm"
           >
             Sign in
@@ -134,7 +134,7 @@
           <div>
             <h3 class="tw-font-semibold tw-mb-4 tw-text-gray-800">Quick Links</h3>
             <div class="tw-space-y-3">
-              <a href="#" @click.prevent="signIn" class="tw-block tw-text-gray-700 hover:tw-text-blue tw-transition-colors">
+              <a href="#" @click.prevent="handleSignIn" class="tw-block tw-text-gray-700 hover:tw-text-blue tw-transition-colors">
                 Sign In
               </a>
               <a href="https://forms.gle/7iKpHRr1Adn7SWSS6" target="_blank" class="tw-block tw-text-gray-700 hover:tw-text-blue tw-transition-colors">
@@ -306,6 +306,7 @@ import SignInGoogleBtn from "@/components/SignInGoogleBtn.vue"
 import NewEvent from "@/components/NewEvent.vue"
 import NewDialog from "@/components/NewDialog.vue"
 import Logo from "@/components/Logo.vue"
+import { mapState, mapActions } from "vuex"
 
 export default {
   name: "Landing",
@@ -354,21 +355,45 @@ export default {
     Logo,
   },
 
-  data: () => ({
-    signInDialog: false,
-    newDialog: false,
-    eventCode: '',
-    codeError: false,
-    joining: false,
-  }),
+  data() {
+    return {
+      signInDialog: false,
+      newDialog: false,
+      eventCode: '',
+      codeError: false,
+      joining: false,
+      loading: false,
+    }
+  },
 
   computed: {
+    ...mapState(["authUser"]),
     isPhone() {
       return isPhone(this.$vuetify)
     },
   },
 
   methods: {
+    ...mapActions(["signInWithGoogle", "showError"]),
+    
+    async handleSignIn() {
+      try {
+        // Show loading state if you have one
+        this.loading = true
+        
+        // Sign in with Google using Firebase
+        await this.signInWithGoogle()
+        
+        // Redirect to home page on success
+        this.$router.push({ name: "home" })
+      } catch (error) {
+        console.error("Google sign in failed:", error)
+        this.showError("Sign in failed. Please try again.")
+      } finally {
+        // Hide loading state
+        this.loading = false
+      }
+    },
     signInGoogle() {
       signInGoogle({ state: null, selectAccount: true })
     },

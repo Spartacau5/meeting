@@ -44,8 +44,8 @@
 
 <script>
 import UserAvatarContent from "@/components/UserAvatarContent"
-import { mapState, mapMutations } from "vuex"
-import { post, isPhone } from "@/utils"
+import { mapState, mapMutations, mapActions } from "vuex"
+import { isPhone } from "@/utils"
 
 export default {
   name: "AuthUserMenu",
@@ -69,12 +69,18 @@ export default {
 
   methods: {
     ...mapMutations(["setAuthUser"]),
+    ...mapActions(["signOut"]),
+    
     async signOut() {
-      await post("/auth/sign-out")
-      this.setAuthUser(null)
-      this.$posthog?.reset()
-      location.reload()
+      try {
+        await this.signOut()
+        this.$posthog?.reset()
+        this.$router.push({ name: "landing" })
+      } catch (error) {
+        console.error("Sign out failed:", error)
+      }
     },
+    
     goToSettings() {
       this.$router.replace({ name: "settings" })
     },

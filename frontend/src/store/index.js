@@ -1,6 +1,13 @@
 import Vue from "vue"
 import Vuex from "vuex"
-import { get } from "@/utils"
+import { auth } from "../firebase"
+import { 
+  signInWithPopup, 
+  GoogleAuthProvider, 
+  signOut as firebaseSignOut,
+  onAuthStateChanged
+} from "firebase/auth"
+import { get, post } from "@/utils"
 
 Vue.use(Vuex)
 
@@ -67,6 +74,69 @@ export default new Vuex.Store({
     async refreshAuthUser({ commit }) {
       const authUser = await get("/user/profile")
       commit("setAuthUser", authUser)
+    },
+
+    // Firebase Auth
+    async signInWithGoogle({ commit, dispatch }) {
+      try {
+        const provider = new GoogleAuthProvider()
+        // Add scopes for calendar access
+        provider.addScope("https://www.googleapis.com/auth/calendar.calendarlist.readonly")
+        provider.addScope("https://www.googleapis.com/auth/calendar.events.readonly")
+        
+        const result = await signInWithPopup(auth, provider)
+        
+        // Get the tokens from the result
+        const credential = GoogleAuthProvider.credentialFromResult(result)
+        const accessToken = credential.accessToken
+        const user = result.user
+        
+        // Get the ID token 
+        const idToken = await user.getIdToken()
+        
+        // Send token to your backend to create or update user
+        try {
+          const timezoneOffset = new Date().getTimezoneOffset()
+          await post("/auth/sign-in-firebase", {
+            idToken: idToken,
+            accessToken: accessToken, // May be null/undefined if not requested
+            refreshToken: "", // Firebase Web SDK doesn't expose refresh tokens directly
+            calendarType: "google",
+            timezoneOffset: -timezoneOffset
+          })
+          
+          // Refresh user data from server
+          await dispatch("refreshAuthUser")
+        } catch (error) {
+          console.error("Backend auth error:", error)
+          dispatch("showError", "Failed to authenticate with server")
+          throw error
+        }
+        
+        return user
+      } catch (error) {
+        console.error("Firebase auth error:", error)
+        dispatch("showError", "Authentication failed")
+        throw error
+      }
+    },
+    
+    async signOut({ commit }) {
+      try {
+        // Sign out from Firebase
+        await firebaseSignOut(auth)
+        
+        // Sign out from backend
+        await post("/auth/sign-out")
+        
+        // Clear user data
+        commit("setAuthUser", null)
+        commit("setCreatedEvents", [])
+        commit("setJoinedEvents", [])
+      } catch (error) {
+        console.error("Sign out error:", error)
+        throw error
+      }
     },
 
     // Events

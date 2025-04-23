@@ -39,6 +39,20 @@
       </div>
     </v-fade-transition>
 
+    <!-- Add Stats Section Here -->
+    <div class="tw-mt-auto tw-mb-8 tw-text-center tw-text-light-gray">
+      <div v-if="isLoadingStats" class="tw-text-sm tw-italic">
+        Loading stats...
+      </div>
+      <div v-else-if="statsError" class="tw-text-sm tw-text-red-400">
+        Could not load stats.
+      </div>
+      <div v-else class="tw-flex tw-gap-x-4 tw-text-sm">
+        <span>🎉 {{ formattedUserCount }} users</span>
+        <span>📅 {{ formattedEventCount }} events created</span>
+      </div>
+    </div>
+
     <!-- FAB -->
     <BottomFab v-if="isPhone" id="create-event-btn" @click="createNew">
       <v-icon>mdi-plus</v-icon>
@@ -53,6 +67,7 @@ import CreateSpeedDial from "@/components/CreateSpeedDial.vue"
 import { mapState, mapActions } from "vuex"
 import { eventTypes } from "@/constants"
 import { isPhone } from "@/utils"
+import { get } from "@/utils/fetch_utils" // Import the get helper
 
 export default {
   name: "Home",
@@ -77,9 +92,15 @@ export default {
 
   data: () => ({
     loading: true,
+    userCount: 0,
+    eventCount: 0,
+    isLoadingStats: true,
+    statsError: false,
   }),
 
   mounted() {
+    this.fetchStats() // Fetch stats when component mounts
+    
     // If coming from enabling contacts, show the dialog. Checks if contactsPayload is not an Observer.
     this.$emit("setNewDialogOptions", {
       show: Object.keys(this.contactsPayload).length > 0 || this.openNewGroup,
@@ -123,6 +144,12 @@ export default {
     isPhone() {
       return isPhone(this.$vuetify)
     },
+    formattedUserCount() {
+      return this.userCount.toLocaleString()
+    },
+    formattedEventCount() {
+      return this.eventCount.toLocaleString()
+    },
   },
 
   methods: {
@@ -136,6 +163,20 @@ export default {
         contactsPayload: {},
         openNewGroup: false,
       })
+    },
+    async fetchStats() {
+      this.isLoadingStats = true
+      this.statsError = false
+      try {
+        const stats = await get("/analytics/stats") // Use the correct endpoint
+        this.userCount = stats.userCount
+        this.eventCount = stats.eventCount
+      } catch (error) {
+        console.error("Error fetching stats:", error)
+        this.statsError = true
+      } finally {
+        this.isLoadingStats = false
+      }
     },
   },
 

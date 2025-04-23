@@ -136,6 +136,7 @@
                 <DatePicker
                   v-model="selectedDays"
                   :minCalendarDate="minCalendarDate"
+                  @update:pickerDate="updatePickerDate"
                 />
               </v-input>
             </div>
@@ -426,6 +427,7 @@ export default {
     selectedDaysOfWeek: [],
     startOnMonday: true,
     notificationsEnabled: false,
+    pickerDate: "",
 
     daysOnly: false,
     daysOnlyOptions: Object.freeze([
@@ -561,52 +563,248 @@ export default {
     submit() {
       if (!this.$refs.form.validate()) return
       
+      // Detect if this is a mobile device
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      
+      // Set loading state
       this.loading = true
       let duration = this.endTime - this.startTime
       // Fix duration calculation if it wraps around midnight
       if (duration <= 0) duration += 24
       
       console.log("Start time:", this.startTime, "End time:", this.endTime, "Duration:", duration)
+      console.log("Device type:", isMobile ? "Mobile" : "Desktop");
       
       let type
-      let dates
+      let dates = []
+      let formattedDates = []
 
-      // Set the formattedDates variable for tracking with posthog
-      let formattedDates
+      try {
+        if (this.selectedDateOption === this.dateOptions.SPECIFIC) {
+          type = this.daysOnly ? eventTypes.SPECIFIC_DATES : eventTypes.SPECIFIC_DATES
+          // Deep copy selectedDays and ensure it's not empty
+          const dateStrings = [...this.selectedDays]
+          console.log("Selected date strings:", dateStrings);
+          
+          if (dateStrings.length === 0) {
+            throw new Error("No dates selected. Please select at least one date.");
+          }
 
-      if (this.selectedDateOption === this.dateOptions.SPECIFIC) {
-        type = this.daysOnly ? eventTypes.SPECIFIC_DATES : eventTypes.SPECIFIC_DATES
-        // Deep copy selectedDays
-        const dateStrings = [...this.selectedDays]
-        dates = []
-        formattedDates = []
-
-        for (let dateString of dateStrings) {
-          const fullDate = this.getFullDate(dateString)
-          // Convert to MongoDB ISODate format (primitive.DateTime)
-          const isoDate = new Date(fullDate).toISOString()
-          dates.push(isoDate)
-          formattedDates.push(fullDate)
+          // More robust date processing for all devices
+          for (let dateString of dateStrings) {
+            try {
+              console.log("Processing date string:", dateString);
+              
+              // Make sure we have a valid string
+              if (!dateString || typeof dateString !== 'string') {
+                console.error("Invalid date string:", dateString);
+                continue;
+              }
+              
+              // Normalize the dateString format if needed
+              let normalizedDateString = dateString.trim();
+              
+              // Method 1: Parse ISO formatted date (YYYY-MM-DD)
+              try {
+                // Ensure format is YYYY-MM-DD
+                if (/^\d{4}-\d{2}-\d{2}$/.test(normalizedDateString)) {
+                  const [year, month, day] = normalizedDateString.split('-').map(Number);
+                  
+                  // Validate the components
+                  if (!year || !month || !day || isNaN(year) || isNaN(month) || isNaN(day)) {
+                    console.log("Invalid date components, trying alternative approach");
+                    throw new Error("Invalid date components");
+                  }
+                  
+                  // Create a date object (month is 0-indexed in JS)
+                  const date = new Date(year, month - 1, day);
+                  
+                  // Set the time component
+                  date.setHours(Math.floor(this.startTime), 0, 0, 0);
+                  
+                  // Validate the date
+                  if (isNaN(date.getTime())) {
+                    console.log("Invalid date created, trying alternative approach");
+                    throw new Error("Invalid date object");
+                  }
+                  
+                  // Success - add to dates array
+                  const isoDate = date.toISOString();
+                  dates.push(isoDate);
+                  formattedDates.push(normalizedDateString);
+                  console.log("Successfully processed date:", normalizedDateString, "→", isoDate);
+                  continue; // Skip to next date
+                } else {
+                  throw new Error("Date string not in YYYY-MM-DD format");
+                }
+              } catch (parseErr) {
+                console.log("Error with method 1:", parseErr);
+                // Continue to next method
+              }
+              
+              // Method 2: Handle potential shortened format with current month/year
+              try {
+                // If it's just a day number, add current month and year
+                if (/^\d{1,2}$/.test(normalizedDateString)) {
+                  const currentDate = new Date();
+                  const year = currentDate.getFullYear();
+                  const month = currentDate.getMonth() + 1; // JS months are 0-indexed
+                  const day = parseInt(normalizedDateString);
+                  
+                  normalizedDateString = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+                  
+                  const date = new Date(year, month - 1, day);
+                  date.setHours(Math.floor(this.startTime), 0, 0, 0);
+                  
+                  if (isNaN(date.getTime())) {
+                    throw new Error("Invalid date from short format");
+                  }
+                  
+                  const isoDate = date.toISOString();
+                  dates.push(isoDate);
+                  formattedDates.push(normalizedDateString);
+                  console.log("Method 2 success with short format:", normalizedDateString, "→", isoDate);
+                  continue;
+                } else {
+                  throw new Error("Not a short day format");
+                }
+              } catch (shortFormatErr) {
+                console.log("Error with method 2:", shortFormatErr);
+              }
+              
+              // Method 3: Try with pickerDate prefix
+              try {
+                // If previous methods failed, try with pickerDate prefix
+                if (this.pickerDate && typeof this.pickerDate === 'string') {
+                  // pickerDate should be in format YYYY-MM
+                  const prefix = this.pickerDate;
+                  
+                  // If dateString is just a day number
+                  if (/^\d{1,2}$/.test(normalizedDateString)) {
+                    const day = parseInt(normalizedDateString).toString().padStart(2, '0');
+                    const fullDateString = `${prefix}-${day}`;
+                    
+                    const date = new Date(fullDateString);
+                    date.setHours(Math.floor(this.startTime), 0, 0, 0);
+                    
+                    if (isNaN(date.getTime())) {
+                      throw new Error("Invalid date from pickerDate format");
+                    }
+                    
+                    const isoDate = date.toISOString();
+                    dates.push(isoDate);
+                    formattedDates.push(fullDateString);
+                    console.log("Method 3 success with pickerDate:", fullDateString, "→", isoDate);
+                    continue;
+                  }
+                }
+                throw new Error("No valid pickerDate available");
+              } catch (pickerDateErr) {
+                console.log("Error with method 3:", pickerDateErr);
+              }
+              
+              // Method 4: Last resort, direct Date object creation
+              try {
+                // Try to create date directly 
+                const date = new Date(normalizedDateString);
+                
+                // Set hours explicitly
+                date.setHours(Math.floor(this.startTime), 0, 0, 0);
+                
+                // Validate the date
+                if (isNaN(date.getTime())) {
+                  console.log("Method 4 failed, invalid date");
+                  throw new Error("Invalid date from direct creation");
+                }
+                
+                // Success - add to dates array
+                const isoDate = date.toISOString();
+                dates.push(isoDate);
+                formattedDates.push(normalizedDateString);
+                console.log("Method 4 success, processed date:", normalizedDateString, "→", isoDate);
+                continue; // Skip to next date
+              } catch (directErr) {
+                console.log("Error with method 4:", directErr);
+              }
+              
+              // If we get here, all methods failed
+              console.error("All date parsing methods failed for:", normalizedDateString);
+            } catch (dateErr) {
+              console.error("Error processing date:", dateString, dateErr);
+            }
+          }
+        } else {
+          type = eventTypes.DOW
+          
+          // More robust day of week processing
+          for (let dayIndex of this.selectedDaysOfWeek) {
+            try {
+              // Use day of week to get a reference date string
+              const dayRefDate = this.dayIndexToDayString[dayIndex];
+              
+              // If no reference date is available, create one
+              if (!dayRefDate) {
+                console.log("No reference date for day index:", dayIndex);
+                // Create a date for next occurrence of this day of week
+                const today = new Date();
+                const dayDiff = (dayIndex - today.getDay() + 7) % 7;
+                const targetDate = new Date(today);
+                targetDate.setDate(today.getDate() + dayDiff);
+                targetDate.setHours(Math.floor(this.startTime), 0, 0, 0);
+                
+                const isoDate = targetDate.toISOString();
+                dates.push(isoDate);
+                console.log("Created dynamic reference for day of week:", dayIndex, "→", isoDate);
+                continue;
+              }
+              
+              // Parse the date components
+              const [year, month, day] = dayRefDate.split('-').map(Number);
+              
+              // Create date object and set time
+              const date = new Date(year, month - 1, day);
+              date.setHours(Math.floor(this.startTime), 0, 0, 0);
+              
+              // Validate the date
+              if (isNaN(date.getTime())) {
+                console.error("Invalid day of week date:", date);
+                continue;
+              }
+              
+              // Success - add to dates array
+              const isoDate = date.toISOString();
+              dates.push(isoDate);
+              formattedDates.push(dayRefDate);
+              console.log("Successfully processed day of week:", dayIndex, "→", isoDate);
+            } catch (dateErr) {
+              console.error("Error processing day of week:", dayIndex, dateErr);
+            }
+          }
         }
-      } else {
-        type = eventTypes.DOW
-        dates = []
-        formattedDates = []
 
-        // Assuming this.selectedDaysOfWeek contains day indices
-        for (let dayIndex of this.selectedDaysOfWeek) {
-          // Get a consistent date string for this day of week
-          const dateString = dayIndexToDayString[dayIndex]
-          const fullDate = this.getFullDate(dateString)
-          // Convert to MongoDB ISODate format (primitive.DateTime)
-          const isoDate = new Date(fullDate).toISOString()
-          dates.push(isoDate)
-          formattedDates.push(fullDate)
+        // Make sure we have at least one valid date
+        if (dates.length === 0) {
+          console.error("No valid dates could be processed. Original selections:", 
+            this.selectedDateOption === this.dateOptions.SPECIFIC ? this.selectedDays : this.selectedDaysOfWeek);
+          
+          // Log more details for debugging
+          if (this.selectedDateOption === this.dateOptions.SPECIFIC) {
+            console.log("Date format issue: Selected days were:", this.selectedDays);
+          } else {
+            console.log("Day of week issue: Selected days of week were:", this.selectedDaysOfWeek);
+          }
+          
+          throw new Error("No valid dates could be processed");
         }
+
+        console.log("Dates being sent:", dates)
+        console.log("Event type:", type)
+      } catch (err) {
+        console.error("Error in date processing:", err);
+        this.showError("There was a problem with the date selection. Please try again.");
+        this.loading = false;
+        return;
       }
-
-      console.log("Dates being sent:", dates)
-      console.log("Event type:", type)
 
       const payload = {
         name: this.name,
@@ -643,31 +841,111 @@ export default {
       }
 
       if (!this.edit) {
+        // Prepare a failsafe URL in case both router and direct navigation fail
+        const failsafeUrl = `${window.location.origin}/e/`;
+        let navigationComplete = false;
+        
+        // Set a safety timeout to ensure loading state clears even if navigation fails
+        const safetyTimeout = setTimeout(() => {
+          if (!navigationComplete) {
+            console.warn('Safety timeout triggered - navigation did not complete');
+            this.loading = false;
+            this.$emit("input", false);
+            // Show a message to the user
+            this.showError("Your event was created, but there was a problem navigating to it. Please check your dashboard.");
+          }
+        }, 8000); // 8 second safety timeout
+        
         // Create new event on backend
         post("/events", payload)
           .then(({ eventId, shortId }) => {
-            this.$router.push({
-              name: "event",
-              params: {
-                eventId: shortId ?? eventId,
-                initialTimezone: this.timezone,
-              },
-            })
+            const eventIdToUse = shortId ?? eventId;
+            
+            // Log success for debugging
+            console.log(`Event created successfully with ID: ${eventIdToUse}`);
+            
+            // Capture analytics before navigation
+            posthogPayload.eventId = eventId;
+            this.$posthog?.capture("Event created", posthogPayload);
+            
+            // IMPORTANT: Only reset form and loading state AFTER navigation
+            const navigateAndReset = () => {
+              // Set a flag to prevent double-navigation attempts
+              if (navigationComplete) return;
+              navigationComplete = true;
+              
+              // Clear the safety timeout since navigation succeeded
+              clearTimeout(safetyTimeout);
+              
+              // Only reset the form after we're sure navigation was triggered
+              setTimeout(() => {
+                this.$emit("input", false);
+                this.reset();
+                this.loading = false;
+              }, 100);
+            };
+            
+            // Special handling for iOS Safari
+            const isIOSSafari = /iPhone|iPad|iPod/.test(navigator.userAgent) && 
+                               !/(Chrome|CriOS|OPiOS)/.test(navigator.userAgent) &&
+                               /Safari/.test(navigator.userAgent);
 
-            this.$emit("input", false)
-            this.reset()
-
-            posthogPayload.eventId = eventId
-            this.$posthog?.capture("Event created", posthogPayload)
+            if (isIOSSafari) {
+              console.log("Using iOS Safari specific navigation");
+              // iOS Safari has known issues with complex navigation, use simplest approach
+              window.location.href = `/e/${eventIdToUse}`;
+              navigateAndReset();
+              return;
+            }
+            
+            try {
+              // First try to use router navigation (history mode)
+              this.$router.push({
+                name: "event",
+                params: {
+                  eventId: eventIdToUse,
+                  initialTimezone: this.timezone,
+                },
+              }).then(() => {
+                navigateAndReset();
+              }).catch(err => {
+                console.error("Router navigation failed:", err);
+                // Fallback to direct URL change if router fails (common on mobile)
+                try {
+                  window.location.href = `/e/${eventIdToUse}`;
+                  navigateAndReset();
+                } catch (navErr) {
+                  console.error("Direct navigation failed:", navErr);
+                  // Ultimate failsafe - absolute URL
+                  window.location.href = `${failsafeUrl}${eventIdToUse}`;
+                  navigateAndReset();
+                }
+              });
+            } catch (err) {
+              console.error("Navigation error:", err);
+              // Fallback to direct URL change
+              try {
+                window.location.href = `/e/${eventIdToUse}`;
+                navigateAndReset();
+              } catch (navErr) {
+                console.error("Direct navigation failed:", navErr);
+                // Ultimate failsafe - absolute URL
+                window.location.href = `${failsafeUrl}${eventIdToUse}`;
+                navigateAndReset();
+              }
+            }
           })
           .catch((err) => {
-            this.showError(
-              "There was a problem creating that event! Please try again later."
-            )
-          })
-          .finally(() => {
-            this.loading = false
-          })
+            console.error("Error creating event:", err);
+            if (err.message && err.message.includes("NetworkError")) {
+              this.showError("Network error. Please check your connection and try again.");
+            } else {
+              this.showError(
+                "There was a problem creating that event! Please try again later."
+              );
+            }
+            this.loading = false;
+          });
       } else {
         // Edit event on backend
         if (this.event) {
@@ -839,14 +1117,36 @@ export default {
       )
     },
     getFullDate(dateString) {
-      // Helper method to convert a date string to a full date with the selected time
-      const startTimeString = this.timeNumToTimeString(this.startTime)
-      return `${dateString} ${startTimeString}`
+      try {
+        // Parse the date components safely
+        const [year, month, day] = dateString.split('-').map(Number);
+        
+        // Create a date object (month is 0-indexed in JS)
+        const date = new Date(year, month - 1, day);
+        
+        // Set the start time
+        date.setHours(Math.floor(this.startTime), 0, 0, 0);
+        
+        // Check if date is valid
+        if (isNaN(date.getTime())) {
+          console.error('Invalid date created in getFullDate:', dateString);
+          throw new Error('Invalid date');
+        }
+        
+        return date.toISOString();
+      } catch (err) {
+        console.error('Error in getFullDate:', err);
+        // Fallback to old method
+        return `${dateString} ${Math.floor(this.startTime)}:00:00`;
+      }
     },
     
     timeNumToTimeString(timeNum) {
       // Convert time number (e.g., 14) to time string (e.g., "14:00")
       return `${Math.floor(timeNum)}:00:00`
+    },
+    updatePickerDate(newPickerDate) {
+      this.pickerDate = newPickerDate;
     },
   },
 

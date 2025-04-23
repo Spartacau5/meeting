@@ -27,7 +27,7 @@ export const fetchMethod = (method, route, body = {}) => {
   /* Calls the given route with the give method and body */
   const params = {
     method,
-    credentials: "include",
+    credentials: "include", // This is important for cookies/session
   }
 
   if (method !== "GET") {
@@ -54,44 +54,51 @@ export const fetchMethod = (method, route, body = {}) => {
     }
   }
 
-  console.log("Making request to:", apiUrl + adjustedRoute);
-  if (method !== "GET") {
-    console.log("Request body:", params.body);
+  const fullUrl = apiUrl + adjustedRoute;
+  console.log(`[API ${method}] ${fullUrl}`);
+  
+  if (method !== "GET" && body) {
+    console.log(`Request body:`, body);
   }
   
-  return fetch(apiUrl + adjustedRoute, params)
+  return fetch(fullUrl, params)
     .then(async (res) => {
       const text = await res.text()
-      console.log(`Response status: ${res.status} ${res.statusText}`);
+      console.log(`[API Response] ${fullUrl} - Status: ${res.status} ${res.statusText}`);
+
+      // Check for authentication issues (401)
+      if (res.status === 401) {
+        console.warn("[Auth Error] Unauthorized API request detected");
+        // We could emit an event here or directly update Vuex store
+      }
 
       // Parse JSON if text is not empty
       let returnValue
       if (text.length === 0) {
         returnValue = text
-        console.log("Empty response received");
       } else {
         try {
           returnValue = JSON.parse(text)
-          console.log("Response data:", returnValue);
         } catch (err) {
-          console.error("Failed to parse response as JSON:", text);
+          console.error(`[API Parse Error] ${fullUrl} - Failed to parse response as JSON:`, text);
           throw { error: errors.JsonError }
         }
       }
 
       // Check if response was ok
       if (!res.ok) {
-        console.error("Response error:", returnValue);
+        console.error(`[API Error] ${fullUrl} - Server returned error:`, returnValue);
         throw returnValue
       }
 
       return returnValue
     })
-    .then((data) => {
-      return data
-    })
     .catch(err => {
-      console.error("Fetch error:", err);
+      if (err.name === 'TypeError' && err.message === 'Failed to fetch') {
+        console.error(`[API Network Error] ${fullUrl} - Could not reach server. Network issue or CORS problem.`);
+      } else {
+        console.error(`[API Error] ${fullUrl} -`, err);
+      }
       throw err;
     })
 }

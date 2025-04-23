@@ -11,12 +11,47 @@
     />
     <v-main>
       <div class="tw-flex tw-h-screen tw-flex-col">
+        <!-- App Header (Using existing header styling from the dashboard/landing) -->
+        <header v-if="showHeader" class="tw-bg-white tw-py-4 tw-px-4 tw-border-b tw-border-gray-100 tw-shadow-sm tw-fixed tw-top-0 tw-left-0 tw-right-0 tw-z-10">
+          <div class="tw-max-w-6xl tw-mx-auto tw-flex tw-items-center tw-justify-between">
+            <div class="tw-flex tw-items-center">
+              <router-link to="/" class="tw-no-underline">
+                <Logo type="gatherly" />
+              </router-link>
+            </div>
+            <div class="tw-flex tw-items-center tw-gap-4">
+              <v-btn text href="https://forms.gle/7iKpHRr1Adn7SWSS6" target="_blank" class="tw-text-gray-600 hover:tw-text-blue">Give Feedback</v-btn>
+              <router-link v-if="authUser && $route.name !== 'dashboard'" to="/dashboard" class="tw-no-underline">
+                <v-btn outlined class="tw-border-blue tw-text-blue hover:tw-bg-blue hover:tw-text-white tw-transition-colors">
+                  Dashboard
+                </v-btn>
+              </router-link>
+              <v-btn 
+                v-if="authUser" 
+                outlined 
+                @click="signOut" 
+                class="tw-border-blue tw-text-blue hover:tw-bg-blue hover:tw-text-white tw-transition-colors"
+              >
+                Sign out
+              </v-btn>
+              <v-btn 
+                v-else
+                outlined 
+                @click="signIn" 
+                class="tw-border-blue tw-text-blue hover:tw-bg-blue hover:tw-text-white tw-transition-colors"
+              >
+                Sign in
+              </v-btn>
+            </div>
+          </div>
+        </header>
+        
         <div
           class="tw-relative tw-flex-1 tw-overscroll-auto"
           :class="routerViewClass"
         >
           <router-view
-            v-if="loaded"
+            v-if="isReady"
             :key="$route.fullPath"
             @setNewDialogOptions="setNewDialogOptions"
           />
@@ -38,6 +73,18 @@ html {
 * {
   font-family: "DM Sans", sans-serif;
   /* touch-action: manipulation !important; */
+}
+
+/* App header styles */
+header.tw-fixed {
+  height: 64px; /* Match the height from Home.vue header */
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid theme("colors.light-gray-stroke");
+}
+
+header .v-btn {
+  text-transform: none !important;
 }
 
 .v-messages__message {
@@ -145,7 +192,7 @@ html {
 </style>
 
 <script>
-import { mapMutations, mapState } from "vuex"
+import { mapMutations, mapState, mapActions } from "vuex"
 import { get, getLocation, isPhone, post, signInGoogle } from "@/utils"
 import { authTypes } from "@/constants"
 import AutoSnackbar from "@/components/AutoSnackbar"
@@ -175,6 +222,7 @@ export default {
   data: () => ({
     mounted: false,
     loaded: false,
+    authLoaded: false,
     scrollY: 0,
     webviewDialog: false,
     newDialogOptions: {
@@ -200,16 +248,30 @@ export default {
       return !this.isPhone || this.$route.name === "home"
     },
     routerViewClass() {
-      let c = ""
-      if (this.showHeader && this.$route.name !== "event" && this.$route.name !== "group") {
-        if (this.isPhone) {
-          c += "tw-pt-12 "
-        } else {
-          c += "tw-pt-14 "
-        }
-      }
-      return c
+      return this.showHeader ? "tw-pt-16 md:tw-pt-20" : ""
     },
+    isReady() {
+      return this.loaded && this.authLoaded;
+    },
+    getPageTitle() {
+      const routeName = this.$route.name;
+      switch(routeName) {
+        case 'dashboard':
+          return 'Dashboard';
+        case 'event':
+          return 'Event Details';
+        case 'group':
+          return 'Group';
+        case 'settings':
+          return 'Settings';
+        case 'responded':
+          return 'Response Submitted';
+        case 'signUp':
+          return 'Sign Up';
+        default:
+          return 'BetterMeet';
+      }
+    }
   },
 
   methods: {
@@ -220,6 +282,7 @@ export default {
       "setDaysOnlyEnabled",
       "setOverlayAvailabilitiesEnabled",
     ]),
+    ...mapActions(["signOut"]),
     handleScroll(e) {
       this.scrollY = window.scrollY
     },
@@ -236,12 +299,23 @@ export default {
       this.newDialogOptions.eventOnly = false
     },
     signIn() {
-      if (this.$route.name === "event" || this.$route.name === "group" || this.$route.name === "signUp") {
-        if (isWebview(navigator.userAgent)) {
-          this.webviewDialog = true
-          return
-        }
+      if (isWebview(navigator.userAgent)) {
+        this.webviewDialog = true
+        return
+      }
 
+      // Handle direct sign in from header
+      if (this.$route.name === "dashboard" || 
+          this.$route.name === "settings" || 
+          this.$route.name === "landing") {
+        signInGoogle({
+          selectAccount: true,
+        });
+        return;
+      }
+
+      // Handle context-specific sign in for event, group, and signup pages
+      if (this.$route.name === "event" || this.$route.name === "group" || this.$route.name === "signUp") {
         let state
         if (this.$route.name === "event") {
           state = {
@@ -252,6 +326,11 @@ export default {
           state = {
             groupId: this.$route.params.groupId,
             type: authTypes.GROUP_SIGN_IN,
+          }
+        } else if (this.$route.name === "signUp") {
+          state = {
+            signUpId: this.$route.params.signUpId,
+            type: authTypes.SIGN_UP_SIGN_IN,
           }
         }
         signInGoogle({
@@ -273,22 +352,10 @@ export default {
   },
 
   async created() {
-    await get("/user/profile")
-      .then((authUser) => {
-        this.setAuthUser(authUser)
-
-        this.$posthog?.identify(authUser._id, {
-          email: authUser.email,
-          firstName: authUser.firstName,
-          lastName: authUser.lastName,
-        })
-      })
-      .catch(() => {
-        this.setAuthUser(null)
-      })
-      .finally(() => {
-        this.loaded = true
-      })
+    // We'll let Firebase auth handle user profile loading instead
+    // Auth state will be managed centrally via the Firebase auth listener in main.js
+    this.authLoaded = true;
+    this.loaded = true;
 
     // Event listeners
     window.addEventListener("scroll", this.handleScroll)

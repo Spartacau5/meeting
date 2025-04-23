@@ -72,8 +72,34 @@ export default new Vuex.Store({
     },
 
     async refreshAuthUser({ commit }) {
-      const authUser = await get("/user/profile")
-      commit("setAuthUser", authUser)
+      try {
+        console.log("Fetching user profile from backend");
+        const authUser = await get("/user/profile");
+        
+        if (authUser) {
+          console.log("User profile fetched successfully:", authUser.email);
+          commit("setAuthUser", authUser);
+          
+          // If using Posthog, identify the user
+          if (window.posthog) {
+            window.posthog.identify(authUser._id, {
+              email: authUser.email,
+              firstName: authUser.firstName,
+              lastName: authUser.lastName,
+            });
+          }
+          
+          return authUser;
+        } else {
+          console.warn("Backend returned empty user profile");
+          commit("setAuthUser", null);
+          return null;
+        }
+      } catch (error) {
+        console.error("Failed to fetch user profile:", error);
+        commit("setAuthUser", null);
+        throw error;
+      }
     },
 
     // Firebase Auth

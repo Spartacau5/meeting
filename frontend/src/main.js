@@ -40,27 +40,30 @@ Vue.directive('tooltip', {
 });
 
 // Initialize Firebase Auth State Listener
-onAuthStateChanged(auth, (user) => {
+onAuthStateChanged(auth, async (user) => {
+  console.log("Firebase auth state changed:", user ? "Signed in" : "Signed out");
+  
   if (user) {
-    // User is signed in, but we'll rely on our backend for user data
-    console.log("Firebase user signed in:", user.email)
-    
-    // If we don't have user data yet, fetch it from backend
-    if (!store.state.authUser) {
-      store.dispatch("refreshAuthUser").catch(err => {
-        console.error("Failed to refresh user data:", err)
-      })
+    // User is signed in with Firebase, verify with backend
+    try {
+      const authUser = await store.dispatch("refreshAuthUser");
+      console.log("Backend auth successful:", authUser ? authUser.email : "No user data");
+    } catch (err) {
+      console.error("Backend auth failed despite Firebase auth:", err);
+      // If backend doesn't recognize the user, clear store state
+      store.commit("setAuthUser", null);
     }
   } else {
-    // User is signed out
-    console.log("Firebase user signed out")
+    // User is signed out of Firebase
+    console.log("Firebase user signed out, clearing auth state");
     
     // Clear user data if any exists
-    if (store.state.authUser) {
-      store.commit("setAuthUser", null)
-    }
+    store.commit("setAuthUser", null);
+    // Also clear events data
+    store.commit("setCreatedEvents", []);
+    store.commit("setJoinedEvents", []);
   }
-})
+});
 
 Vue.config.productionTip = false
 

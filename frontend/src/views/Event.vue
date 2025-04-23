@@ -1,24 +1,5 @@
 <template>
   <div>
-    <!-- Modern header with subtle shadow -->
-    <header v-if="!authUser" class="tw-bg-white tw-py-4 tw-px-4 tw-border-b tw-border-gray-100 tw-shadow-sm">
-      <div class="tw-max-w-6xl tw-mx-auto tw-flex tw-items-center tw-justify-between">
-        <router-link to="/" class="tw-no-underline">
-          <Logo type="gatherly" />
-        </router-link>
-        <div class="tw-flex tw-items-center tw-gap-4">
-          <v-btn text href="https://forms.gle/7iKpHRr1Adn7SWSS6" target="_blank" class="tw-text-gray-600 hover:tw-text-blue">Give Feedback</v-btn>
-          <v-btn 
-            outlined 
-            @click="signIn" 
-            class="tw-border-blue tw-text-blue hover:tw-bg-blue hover:tw-text-white tw-transition-colors"
-          >
-            Sign in
-          </v-btn>
-        </div>
-      </div>
-    </header>
-    
     <div v-if="event" class="tw-h-full">
       <!-- Mark availability option dialog -->
       <MarkAvailabilityDialog

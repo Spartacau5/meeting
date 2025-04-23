@@ -27,6 +27,7 @@ export const authTypes = Object.freeze({
   GROUP_ADD_AVAILABILITY: "group-add-availability",
   GROUP_SIGN_IN: "group-sign-in",
   GROUP_CREATE: "group-create",
+  SIGN_UP_SIGN_IN: "sign-up-sign-in", // Sign in from sign up page
   ADD_CALENDAR_ACCOUNT: "add-calendar-account",
   ADD_CALENDAR_ACCOUNT_FROM_EDIT: "add-calendar-account-from-edit",
 })

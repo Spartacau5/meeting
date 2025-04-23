@@ -78,39 +78,62 @@ const router = new VueRouter({
 })
 
 router.beforeEach(async (to, from, next) => {
-  const authRoutes = ["dashboard", "settings"]
-  const publicRoutes = ["landing", "auth", "privacy-policy", "404"]
+  // Routes that require authentication
+  const authRoutes = ["dashboard", "settings"];
+  
+  // Routes that are accessible without authentication
+  const publicRoutes = ["landing", "auth", "privacy-policy", "404"];
+  
+  // Special routes that may be accessed both authenticated and non-authenticated
+  // (event, group, signUp pages that can work in both modes)
+  const hybridRoutes = ["event", "group", "signUp", "responded"];
+  
+  console.log(`Route navigation: ${from.name || 'initial'} -> ${to.name}, auth required: ${authRoutes.includes(to.name)}`);
 
   // Check if user is authenticated with Firebase
-  const currentUser = auth.currentUser
+  const currentUser = auth.currentUser;
+  const isFirebaseAuthenticated = !!currentUser;
+  console.log(`Firebase auth state: ${isFirebaseAuthenticated ? 'authenticated' : 'not authenticated'}`);
 
-  if (currentUser) {
-    // User is authenticated - allow access to any route
-    next()
-  } else {
-    // User is not authenticated
-    try {
-      // Double-check with server (for cases where Firebase auth might be out of sync)
-      await get("/auth/status")
-      
-      // If successful, user is authenticated on backend but not in Firebase
-      // Allow access to any route
-      next()
-    } catch (err) {
-      // Not authenticated on backend either
-      
-      // Allow public routes
-      if (publicRoutes.includes(to.name)) {
-        next()
-      }
-      // Redirect away from protected routes
-      else if (authRoutes.includes(to.name)) {
-        next({ name: "landing" })
-      } else {
-        next()
-      }
-    }
+  // For hybrid routes, we always allow access
+  if (hybridRoutes.includes(to.name)) {
+    console.log(`Allowing access to hybrid route: ${to.name}`);
+    next();
+    return;
   }
-})
+
+  // For public routes, we always allow access
+  if (publicRoutes.includes(to.name)) {
+    console.log(`Allowing access to public route: ${to.name}`);
+    next();
+    return;
+  }
+
+  // For auth routes, we need to verify authentication
+  if (authRoutes.includes(to.name)) {
+    // If Firebase says we're authenticated, we allow access
+    if (isFirebaseAuthenticated) {
+      console.log(`Firebase authenticated, allowing access to: ${to.name}`);
+      next();
+      return;
+    }
+    
+    // Double-check with server as a fallback
+    try {
+      console.log('Checking auth status with backend');
+      await get("/auth/status");
+      console.log('Backend confirms authentication, allowing access');
+      next();
+    } catch (err) {
+      console.error('Not authenticated with backend, redirecting to landing');
+      next({ name: "landing" });
+    }
+    return;
+  }
+
+  // For any other route, allow by default
+  console.log(`Route ${to.name} not explicitly categorized, allowing access`);
+  next();
+});
 
 export default router

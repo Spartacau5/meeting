@@ -1,24 +1,5 @@
 <template>
   <div>
-    <!-- Modern header with subtle shadow - same as Landing page -->
-    <header class="tw-bg-gradient-to-r tw-from-blue-50 tw-to-green-50 tw-py-5 tw-px-4 tw-border-b tw-border-gray-200 tw-shadow-md">
-      <div class="tw-max-w-6xl tw-mx-auto tw-flex tw-items-center tw-justify-between">
-        <router-link to="/">
-          <Logo type="schej" />
-        </router-link>
-        <div class="tw-flex tw-items-center tw-gap-4">
-          <v-btn text href="https://forms.gle/7iKpHRr1Adn7SWSS6" target="_blank" class="tw-text-gray-700 hover:tw-text-blue tw-font-medium">Give Feedback</v-btn>
-          <v-btn 
-            outlined 
-            @click="signOut" 
-            class="tw-border-blue tw-text-blue hover:tw-bg-blue hover:tw-text-white tw-transition-colors tw-shadow-sm"
-          >
-            Sign out
-          </v-btn>
-        </div>
-      </div>
-    </header>
-
     <!-- Main content with improved styling -->
     <div class="tw-bg-gradient-to-br tw-from-blue-50 tw-via-purple-50 tw-to-green-50 tw-min-h-screen tw-pt-8 tw-pb-12">
       <div class="tw-mx-auto tw-max-w-6xl tw-space-y-8 tw-px-4">

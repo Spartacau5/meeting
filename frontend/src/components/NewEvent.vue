@@ -854,7 +854,7 @@ export default {
             // Show a message to the user
             this.showError("Your event was created, but there was a problem navigating to it. Please check your dashboard.");
           }
-        }, 8000); // 8 second safety timeout
+        }, 15000); // 15 second safety timeout for mobile
         
         // Create new event on backend
         post("/events", payload)
@@ -885,20 +885,50 @@ export default {
               }, 100);
             };
             
+            // Detect mobile devices - more comprehensive check
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/.test(navigator.userAgent);
+            
+            // Special handling for iOS devices
+            const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+            
             // Special handling for iOS Safari
-            const isIOSSafari = /iPhone|iPad|iPod/.test(navigator.userAgent) && 
+            const isIOSSafari = isIOS && 
                                !/(Chrome|CriOS|OPiOS)/.test(navigator.userAgent) &&
                                /Safari/.test(navigator.userAgent);
 
-            if (isIOSSafari) {
-              console.log("Using iOS Safari specific navigation");
-              // iOS Safari has known issues with complex navigation, use simplest approach
-              window.location.href = `/e/${eventIdToUse}`;
-              navigateAndReset();
+            console.log("Navigation device detection:", {
+              isMobile,
+              isIOS,
+              isIOSSafari,
+              userAgent: navigator.userAgent
+            });
+
+            // For mobile devices, use the simplest direct navigation approach
+            if (isMobile) {
+              console.log("Using mobile-specific direct navigation");
+              try {
+                // On mobile, always use direct location change which is most reliable
+                const eventUrl = `/e/${eventIdToUse}`;
+                console.log("Navigating to:", eventUrl);
+                
+                // Create a small delay to ensure the event is fully created
+                setTimeout(() => {
+                  // Use replace instead of href to avoid history issues
+                  window.location.replace(eventUrl);
+                  navigateAndReset();
+                }, 200);
+              } catch (mobileNavErr) {
+                console.error("Mobile navigation failed:", mobileNavErr);
+                // Fallback to absolute URL as ultimate safety
+                window.location.replace(`${failsafeUrl}${eventIdToUse}`);
+                navigateAndReset();
+              }
               return;
             }
             
+            // Desktop browsers can use the router
             try {
+              console.log("Using router navigation for desktop");
               // First try to use router navigation (history mode)
               this.$router.push({
                 name: "event",
@@ -910,29 +940,15 @@ export default {
                 navigateAndReset();
               }).catch(err => {
                 console.error("Router navigation failed:", err);
-                // Fallback to direct URL change if router fails (common on mobile)
-                try {
-                  window.location.href = `/e/${eventIdToUse}`;
-                  navigateAndReset();
-                } catch (navErr) {
-                  console.error("Direct navigation failed:", navErr);
-                  // Ultimate failsafe - absolute URL
-                  window.location.href = `${failsafeUrl}${eventIdToUse}`;
-                  navigateAndReset();
-                }
+                // Fallback to direct URL change if router fails
+                window.location.href = `/e/${eventIdToUse}`;
+                navigateAndReset();
               });
             } catch (err) {
               console.error("Navigation error:", err);
               // Fallback to direct URL change
-              try {
-                window.location.href = `/e/${eventIdToUse}`;
-                navigateAndReset();
-              } catch (navErr) {
-                console.error("Direct navigation failed:", navErr);
-                // Ultimate failsafe - absolute URL
-                window.location.href = `${failsafeUrl}${eventIdToUse}`;
-                navigateAndReset();
-              }
+              window.location.href = `/e/${eventIdToUse}`;
+              navigateAndReset();
             }
           })
           .catch((err) => {

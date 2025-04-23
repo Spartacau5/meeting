@@ -75,7 +75,17 @@ const router = new VueRouter({
   mode: "history",
   base: process.env.BASE_URL,
   routes,
+  scrollBehavior(to, from, savedPosition) {
+    // Always scroll to top when navigating to a new page
+    return { x: 0, y: 0 };
+  },
 })
+
+// Add global navigation error handler
+router.onError((error) => {
+  console.error('Router navigation error:', error);
+  // Don't let router errors crash the app
+});
 
 router.beforeEach(async (to, from, next) => {
   // Routes that require authentication

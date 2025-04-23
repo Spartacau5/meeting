@@ -1,7 +1,7 @@
 const { defineConfig } = require("@vue/cli-service")
 module.exports = defineConfig({
   transpileDependencies: ["vuetify"],
-  publicPath: './',
+  publicPath: '/',
   // publicPath: "/dist",
   // pluginOptions: {
   devServer: {
@@ -14,6 +14,7 @@ module.exports = defineConfig({
     headers: {
       'Access-Control-Allow-Origin': '*',
     },
+    historyApiFallback: true
   },
   pwa: {
     name: 'BetterMeet',

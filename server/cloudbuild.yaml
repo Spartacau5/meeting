@@ -1,0 +1,28 @@
+steps:
+  # Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/verdant-coyote-455921-h1/bettermeet-server', '-f', 'Dockerfile.cloud', '.']
+  
+  # Push the container image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/verdant-coyote-455921-h1/bettermeet-server']
+  
+  # Deploy container image to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'bettermeet-server'
+      - '--image'
+      - 'gcr.io/verdant-coyote-455921-h1/bettermeet-server'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--memory'
+      - '512Mi'
+
+images:
+  - 'gcr.io/verdant-coyote-455921-h1/bettermeet-server'

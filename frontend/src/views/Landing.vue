@@ -6,7 +6,28 @@
         <Logo type="schej" />
         <div class="tw-flex tw-items-center tw-gap-4">
           <v-btn text href="https://forms.gle/7iKpHRr1Adn7SWSS6" target="_blank" class="tw-text-gray-700 hover:tw-text-blue tw-font-medium">Give Feedback</v-btn>
+          
+          <!-- Show Dashboard button if user is signed in -->
+          <template v-if="isSignedIn">
+            <v-btn 
+              outlined
+              :to="{ name: 'dashboard' }"
+              class="tw-border-blue tw-text-blue hover:tw-bg-blue hover:tw-text-white tw-transition-colors tw-shadow-sm"
+            >
+              Dashboard
+            </v-btn>
+            <v-btn 
+              text
+              @click="signOut" 
+              class="tw-text-gray-700 hover:tw-text-red-500 tw-transition-colors"
+            >
+              Sign out
+            </v-btn>
+          </template>
+          
+          <!-- Show Sign in button if user is not signed in -->
           <v-btn 
+            v-else
             outlined 
             @click="handleSignIn" 
             class="tw-border-blue tw-text-blue hover:tw-bg-blue hover:tw-text-white tw-transition-colors tw-shadow-sm"
@@ -301,12 +322,13 @@
 </style>
 
 <script>
-import { isPhone, signInGoogle } from "@/utils"
+import { isPhone, signInGoogle, get } from "@/utils"
 import SignInGoogleBtn from "@/components/SignInGoogleBtn.vue"
 import NewEvent from "@/components/NewEvent.vue"
 import NewDialog from "@/components/NewDialog.vue"
 import Logo from "@/components/Logo.vue"
 import { mapState, mapActions } from "vuex"
+import { auth } from "../firebase"
 
 export default {
   name: "Landing",
@@ -371,10 +393,13 @@ export default {
     isPhone() {
       return isPhone(this.$vuetify)
     },
+    isSignedIn() {
+      return !!auth.currentUser
+    }
   },
 
   methods: {
-    ...mapActions(["signInWithGoogle", "showError"]),
+    ...mapActions(["signInWithGoogle", "showError", "signOut"]),
     
     async handleSignIn() {
       try {
@@ -426,6 +451,14 @@ export default {
       } finally {
         this.joining = false;
       }
+    },
+    signOut() {
+      this.$store.dispatch('signOut').then(() => {
+        // Refresh the page to ensure clean state
+        this.$router.go(0);
+      }).catch(error => {
+        console.error('Error signing out:', error);
+      });
     }
   }
 }

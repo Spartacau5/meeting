@@ -13,7 +13,7 @@ RUN go mod download
 # Copy the source code
 COPY . .
 
-# Build the application with proper configuration
+# Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o server .
 
 # Use a smaller base image for the final stage
@@ -33,14 +33,16 @@ COPY verdant-coyote-455921-h1-22d94077f635.json /app/
 # Make the binary executable
 RUN chmod +x /app/server
 
-# Set environment variables for Cloud Run
-ENV K_SERVICE=bettermeet-server
-ENV PORT=8080
+# Set environment variables for CORS
+ENV CORS_ALLOW_ORIGINS="https://verdant-coyote-455921-h1.web.app,http://localhost:8080,http://localhost:3000"
+ENV CORS_ALLOW_CREDENTIALS="true"
 ENV GIN_MODE=release
+ENV PORT=8080
+ENV K_SERVICE=bettermeet-server
 ENV GOOGLE_APPLICATION_CREDENTIALS="/app/verdant-coyote-455921-h1-22d94077f635.json"
 
-# Expose the port
+# Expose port
 EXPOSE 8080
 
-# Run the binary with release flag
+# Run the binary
 CMD ["/app/server", "-release"]

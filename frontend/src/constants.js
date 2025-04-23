@@ -7,7 +7,7 @@ export const serverURL =
 // Add a direct reference to the backend URL for easier access
 export const backendURL = process.env.NODE_ENV === "development" 
   ? "http://localhost:3002/api"
-  : "/api"
+  : process.env.VUE_APP_API_URL || "https://bettermeet-server-2pycybynta-uc.a.run.app/api"
 
 // Errors enum
 export const errors = Object.freeze({

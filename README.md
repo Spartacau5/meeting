@@ -3,6 +3,9 @@ Gatherly helps you quickly find the best time for your group to meet. It's like 
 
 Live website: https://gatherly.app
 
+##Latest Deployment Script to run
+./deploy-firebase.sh
+
 ## Project Setup
 
 ### Prerequisites

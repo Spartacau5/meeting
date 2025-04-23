@@ -150,6 +150,13 @@ func main() {
 	routes.InitAnalytics(apiRouter)
 	slackbot.InitSlackbot(apiRouter)
 
+	// Add a base URL health check endpoint
+	router.GET("/", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Server is running",
+		})
+	})
+
 	// Check if running in Cloud Run
 	if os.Getenv("K_SERVICE") != "" {
 		// Skip trying to serve frontend files when running in Cloud Run
@@ -187,11 +194,13 @@ func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "3002"
+		log.Printf("No PORT environment variable found, using default port %s", port)
+	} else {
+		log.Printf("Using PORT environment variable: %s", port)
 	}
-	log.Printf("Starting server on port %s", port)
 
 	// Run server
-	log.Printf("Listening on port %s", port)
+	log.Printf("Starting server on port %s", port)
 	router.Run(fmt.Sprintf(":%s", port))
 }
 

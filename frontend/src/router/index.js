@@ -1,6 +1,7 @@
 import Vue from "vue"
 import VueRouter from "vue-router"
 import Landing from "@/views/Landing"
+import RedirectComponent from "@/components/RedirectComponent"
 import { auth } from "../firebase"
 import { get } from "@/utils"
 
@@ -13,10 +14,16 @@ const routes = [
     component: Landing,
   },
   {
-    path: "/home",
-    name: "home",
+    path: "/dashboard",
+    name: "dashboard",
     component: () => import("@/views/Home.vue"),
     props: true,
+  },
+  {
+    path: "/home",
+    name: "home",
+    component: RedirectComponent,
+    props: { to: "dashboard" }
   },
   {
     path: "/settings",
@@ -71,25 +78,15 @@ const router = new VueRouter({
 })
 
 router.beforeEach(async (to, from, next) => {
-  const authRoutes = ["home", "settings"]
-  const noAuthRoutes = ["landing"]
+  const authRoutes = ["dashboard", "settings"]
   const publicRoutes = ["landing", "auth", "privacy-policy", "404"]
 
   // Check if user is authenticated with Firebase
   const currentUser = auth.currentUser
 
   if (currentUser) {
-    // User is authenticated
-    // Don't redirect if already going to appropriate route
-    if (noAuthRoutes.includes(to.name)) {
-      if (to.name !== "home") {
-        next({ name: "home" })
-      } else {
-        next()
-      }
-    } else {
-      next()
-    }
+    // User is authenticated - allow access to any route
+    next()
   } else {
     // User is not authenticated
     try {
@@ -97,16 +94,8 @@ router.beforeEach(async (to, from, next) => {
       await get("/auth/status")
       
       // If successful, user is authenticated on backend but not in Firebase
-      // Proceed with normal authenticated flow
-      if (noAuthRoutes.includes(to.name)) {
-        if (to.name !== "home") {
-          next({ name: "home" })
-        } else {
-          next()
-        }
-      } else {
-        next()
-      }
+      // Allow access to any route
+      next()
     } catch (err) {
       // Not authenticated on backend either
       
@@ -116,11 +105,7 @@ router.beforeEach(async (to, from, next) => {
       }
       // Redirect away from protected routes
       else if (authRoutes.includes(to.name)) {
-        if (to.name !== "landing") {
-          next({ name: "landing" })
-        } else {
-          next()
-        }
+        next({ name: "landing" })
       } else {
         next()
       }

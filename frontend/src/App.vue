@@ -9,7 +9,6 @@
       :contactsPayload="newDialogOptions.contactsPayload"
       :no-tabs="newDialogOptions.eventOnly"
     />
-    <UpvoteRedditSnackbar />
     <v-main>
       <div class="tw-flex tw-h-screen tw-flex-col">
         <div
@@ -152,7 +151,6 @@ import { authTypes } from "@/constants"
 import AutoSnackbar from "@/components/AutoSnackbar"
 import AuthUserMenu from "@/components/AuthUserMenu.vue"
 import SignInNotSupportedDialog from "@/components/SignInNotSupportedDialog.vue"
-import UpvoteRedditSnackbar from "@/components/UpvoteRedditSnackbar.vue"
 import Logo from "@/components/Logo.vue"
 import isWebview from "is-ua-webview"
 import NewDialog from "./components/NewDialog.vue"
@@ -171,7 +169,6 @@ export default {
     AuthUserMenu,
     SignInNotSupportedDialog,
     NewDialog,
-    UpvoteRedditSnackbar,
     Logo,
   },
 

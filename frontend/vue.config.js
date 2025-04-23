@@ -23,7 +23,49 @@ module.exports = defineConfig({
     appleMobileWebAppCapable: 'yes',
     appleMobileWebAppStatusBarStyle: 'black',
     workboxOptions: {
-      skipWaiting: true
+      skipWaiting: true,
+      clientsClaim: true,
+      // Don't precache dynamic pages like event pages
+      exclude: [/\.map$/, /_redirects/, /e\/(.*)\.html/],
+      // Define runtime caching rules for navigation
+      runtimeCaching: [
+        {
+          // Cache API calls
+          urlPattern: new RegExp('^https://.*\\.run\\.app/api/'),
+          handler: 'NetworkFirst',
+          options: {
+            cacheName: 'api-cache',
+            expiration: {
+              maxEntries: 100,
+              maxAgeSeconds: 60 * 60 // 1 hour
+            }
+          }
+        },
+        {
+          // Special handling for event page navigation
+          urlPattern: new RegExp('/e/.*'),
+          handler: 'NetworkFirst',
+          options: {
+            cacheName: 'event-pages',
+            expiration: {
+              maxEntries: 50,
+              maxAgeSeconds: 60 * 60 * 24 // 24 hours
+            }
+          }
+        },
+        {
+          // Cache static assets
+          urlPattern: new RegExp('\\.(?:js|css|png|jpg|jpeg|svg|gif)$'),
+          handler: 'CacheFirst',
+          options: {
+            cacheName: 'static-resources',
+            expiration: {
+              maxEntries: 100,
+              maxAgeSeconds: 60 * 60 * 24 * 7 // 7 days
+            }
+          }
+        }
+      ]
     }
   }
 })

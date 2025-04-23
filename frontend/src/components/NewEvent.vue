@@ -908,15 +908,26 @@ export default {
               console.log("Using mobile-specific direct navigation");
               try {
                 // On mobile, always use direct location change which is most reliable
-                const eventUrl = `/e/${eventIdToUse}`;
-                console.log("Navigating to:", eventUrl);
+                // Use absolute URL to avoid any path resolution issues
+                const absoluteEventUrl = `${window.location.origin}/e/${eventIdToUse}`;
+                console.log("Navigating to absolute URL:", absoluteEventUrl);
                 
-                // Create a small delay to ensure the event is fully created
+                // Create a larger delay to ensure event is fully created and accessible
                 setTimeout(() => {
                   // Use replace instead of href to avoid history issues
-                  window.location.replace(eventUrl);
+                  window.location.replace(absoluteEventUrl);
+                  
+                  // Set a secondary fallback in case the first navigation fails
+                  setTimeout(() => {
+                    if (!navigationComplete) {
+                      console.log("Initial navigation didn't complete, trying fallback");
+                      window.location.href = absoluteEventUrl;
+                      navigateAndReset();
+                    }
+                  }, 1000);
+                  
                   navigateAndReset();
-                }, 200);
+                }, 800); // Increased delay for mobile browsers
               } catch (mobileNavErr) {
                 console.error("Mobile navigation failed:", mobileNavErr);
                 // Fallback to absolute URL as ultimate safety

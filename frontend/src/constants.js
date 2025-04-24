@@ -1,12 +1,16 @@
 // Urls
+// Dynamically determine the server URL for development to support network access
+const devBackendPort = 3002; // Make the backend port configurable if needed
+const devApiUrl = `http://${window.location.hostname}:${devBackendPort}/api`;
+
 export const serverURL =
-  process.env.NODE_ENV === "development" 
-    ? "http://localhost:3002/api" 
+  process.env.NODE_ENV === "development"
+    ? devApiUrl // Use dynamic URL for development
     : process.env.VUE_APP_API_URL || "/api"
 
 // Add a direct reference to the backend URL for easier access
-export const backendURL = process.env.NODE_ENV === "development" 
-  ? "http://localhost:3002/api"
+export const backendURL = process.env.NODE_ENV === "development"
+  ? devApiUrl // Use dynamic URL for development
   : process.env.VUE_APP_API_URL || "https://bettermeet-server-2pycybynta-uc.a.run.app/api"
 
 // Errors enum

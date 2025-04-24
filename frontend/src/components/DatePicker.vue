@@ -4,11 +4,8 @@
       ref="datePicker"
       :pickerDate.sync="pickerDate"
       :value="value"
-      @touchstart:date="touchstart"
-      @mousedown:date="mousedown"
-      @mouseover:date="mouseover"
-      @touchmove="handleTouchMove"
-      @touchend="handleTouchEnd"
+      @click:date="dateClick"
+      @change="emitChange"
       readonly
       no-title
       multiple
@@ -19,9 +16,9 @@
       full-width
       :scrollable="false"
     ></v-date-picker>
-    <!-- <div class="tw-mt-2 tw-text-xs tw-text-very-dark-gray">
-      Drag to select multiple dates
-    </div> -->
+    <div class="tw-mt-2 tw-text-xs tw-text-very-dark-gray">
+      {{ isMobile ? 'Tap to select dates' : 'Drag to select multiple dates' }}
+    </div>
   </div>
 </template>
 
@@ -47,158 +44,147 @@ export default {
   },
 
   methods: {
-    /** Start drag */
-    mousedown(date) {
-      if (this.isMobile) return // Skip if on mobile
+    // Click date handler (works on both mobile and desktop)
+    dateClick(date) {
+      console.log("Date clicked:", date);
       
-      this.dragging = true
-      this.setDragState(date)
-      this.addRemoveDate(date)
+      try {
+        if (!date) return;
+        
+        // For mobile, simply toggle the date
+        if (this.isMobile) {
+          this.toggleDate(date);
+          return;
+        }
+        
+        // For desktop, start drag mode
+        this.dragging = true;
+        this.setDragState(date);
+        this.toggleDate(date);
+        
+        // Add document-level mouse listeners
+        document.addEventListener('mousemove', this.documentMouseMove);
+        document.addEventListener('mouseup', this.documentMouseUp);
+      } catch (err) {
+        console.error("Error in date click:", err);
+      }
     },
     
-    touchstart(date) {
-      // Prevent default to avoid potential browser handling
-      event.preventDefault()
+    // Document level event listeners for drag selection
+    documentMouseMove(e) {
+      if (!this.dragging || this.isMobile) return;
       
-      console.log("Touch start on date:", date)
-      
-      // Store the date that was touched
-      this.lastTouchedDate = date
-      
-      this.dragging = true
-      this.setDragState(date)
-      this.addRemoveDate(date)
-    },
-
-    /** Dragging */
-    mouseover(date) {
-      if (!this.dragging || this.isMobile) return
-
-      this.addRemoveDate(date)
+      try {
+        // Get element under mouse
+        const el = document.elementFromPoint(e.clientX, e.clientY);
+        if (!el) return;
+        
+        // Find button content element
+        const btnContent = el.closest('.v-btn__content');
+        if (!btnContent) return;
+        
+        // Get date from button
+        const day = btnContent.textContent.trim();
+        if (!day || isNaN(parseInt(day))) return;
+        
+        // Format date and process it
+        const dateStr = `${this.pickerDate}-${day.padStart(2, '0')}`;
+        if (dateStr !== this.lastTouchedDate) {
+          this.lastTouchedDate = dateStr;
+          this.toggleDate(dateStr);
+        }
+      } catch (err) {
+        console.error("Error in mouse move:", err);
+      }
     },
     
-    handleTouchMove(e) {
-      if (!this.dragging) return
+    documentMouseUp() {
+      if (this.isMobile) return;
       
-      // Prevent scroll and browser handling
-      e.preventDefault()
+      // Clean up
+      this.dragging = false;
+      this.lastTouchedDate = null;
       
-      // Get the current touch position
-      const touch = e.touches[0]
+      // Remove document listeners
+      document.removeEventListener('mousemove', this.documentMouseMove);
+      document.removeEventListener('mouseup', this.documentMouseUp);
+    },
+    
+    // Change event handler
+    emitChange(dates) {
+      if (Array.isArray(dates)) {
+        this.$emit("input", dates);
+      }
+    },
+    
+    // Helper methods
+    setDragState(date) {
+      if (!date) return;
       
-      // Find element under the touch point
-      const target = document.elementFromPoint(
-        touch.clientX,
-        touch.clientY
-      )
+      const set = new Set(this.value);
+      if (set.has(date)) {
+        this.dragState = this.dragStates.REMOVE;
+      } else {
+        this.dragState = this.dragStates.ADD;
+      }
+    },
+    
+    toggleDate(date) {
+      if (!date) return;
       
-      console.log("Touch move, target:", target ? target.tagName : "none")
+      const set = new Set(this.value);
       
-      // Process only v-btn elements that contain date numbers
-      if (
-        target && 
-        this.datePickerEl.contains(target) &&
-        (target.classList.contains("v-btn__content") || 
-         target.closest(".v-btn__content"))
-      ) {
-        // Get the actual element with text content
-        const btnContent = target.classList.contains("v-btn__content") ? 
-                           target : target.closest(".v-btn__content")
-        
-        if (!btnContent) return
-        
-        // Get date num from target
-        const dateNum = parseInt(btnContent.textContent.trim())
-        if (!isNaN(dateNum)) {
-          console.log("Processing touchmove for date:", dateNum)
-          const dateNumString = `${dateNum}`
-          const date = `${this.pickerDate}-${dateNumString.padStart(2, "0")}`
-          
-          // Only trigger if this is a different date than last processed
-          if (date !== this.lastTouchedDate) {
-            this.lastTouchedDate = date
-            this.addRemoveDate(date)
-          }
+      if (this.dragging && !this.isMobile) {
+        // In drag mode, use the drag state
+        if (this.dragState === this.dragStates.ADD) {
+          set.add(date);
+        } else {
+          set.delete(date);
+        }
+      } else {
+        // In click mode, toggle the date
+        if (set.has(date)) {
+          set.delete(date);
+        } else {
+          set.add(date);
         }
       }
-    },
-
-    /** End drag */
-    handleTouchEnd(e) {
-      // Prevent default to avoid clicks or other actions
-      e.preventDefault()
       
-      console.log("Touch drag ended")
-      this.dragging = false
-      this.lastTouchedDate = null
-    },
-    
-    mouseup(e) {
-      if (!this.dragging || this.isMobile) return
-
-      // Prevent month switching when tap and drag to left / right
-      e.preventDefault()
-      e.stopPropagation()
-
-      this.dragging = false
-    },
-
-    /** Sets the drag state based on the date */
-    setDragState(date) {
-      const set = new Set(this.value)
-      if (set.has(date)) {
-        this.dragState = this.dragStates.REMOVE
-      } else {
-        this.dragState = this.dragStates.ADD
-      }
-    },
-    
-    addRemoveDate(date) {
-      if (!date) return // Skip if date is null or undefined
-      
-      if (this.dragState === this.dragStates.ADD) {
-        this.addDate(date)
-      } else if (this.dragState === this.dragStates.REMOVE) {
-        this.removeDate(date)
-      }
-    },
-    
-    addDate(date) {
-      const set = new Set(this.value)
-      set.add(date)
-      this.$emit("input", [...set])
-    },
-    
-    removeDate(date) {
-      const set = new Set(this.value)
-      set.delete(date)
-      this.$emit("input", [...set])
-    },
-    
-    // Detect mobile device
-    checkIfMobile() {
-      this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
-      console.log("Device detected as:", this.isMobile ? "Mobile" : "Desktop")
+      this.$emit("input", [...set]);
     }
   },
 
   mounted() {
-    this.checkIfMobile()
-    this.datePickerEl = this.$refs.datePicker.$el
+    // Set mobile flag
+    this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    console.log("Device detected as:", this.isMobile ? "Mobile" : "Desktop");
     
-    // We now handle touchmove and touchend directly through v-date-picker events
-    // But keep mouseup event for desktop
-    this.datePickerEl.addEventListener("mouseup", this.mouseup)
+    // Set reference to date picker element
+    try {
+      this.datePickerEl = this.$refs.datePicker.$el;
+    } catch (err) {
+      console.error("Error setting up DatePicker:", err);
+    }
   },
-
+  
   beforeDestroy() {
-    this.datePickerEl.removeEventListener("mouseup", this.mouseup)
+    // Clean up event listeners
+    if (!this.isMobile) {
+      document.removeEventListener('mousemove', this.documentMouseMove);
+      document.removeEventListener('mouseup', this.documentMouseUp);
+    }
   },
 
   watch: {
     pickerDate(newValue) {
       this.$emit('update:pickerDate', newValue);
     }
-  },
+  }
 }
 </script>
+
+<style scoped>
+.datepicker-container {
+  width: 100%;
+}
+</style>

@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "serve": "vue-cli-service serve",
-    "build": "vue-cli-service build"
+    "build": "vue-cli-service build",
+    "mobile": "vue-cli-service serve --host 0.0.0.0 --public $(ipconfig getifaddr en0 || hostname -I | awk '{print $1}'):8080"
   },
   "dependencies": {
     "@gtm-support/vue2-gtm": "^2.0.0",

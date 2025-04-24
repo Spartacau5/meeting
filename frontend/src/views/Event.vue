@@ -1340,14 +1340,24 @@ export default {
 
   async created() {
     window.addEventListener("beforeunload", this.onBeforeUnload)
+    console.log("[Event.vue created] Starting initial data fetch for eventId:", this.eventId);
+    this.loading = true; // Set loading true at the start
 
     // Get event details
     try {
+      console.log("[Event.vue created] Calling refreshEvent...");
       await this.refreshEvent()
+      console.log("[Event.vue created] refreshEvent completed. Event data:", this.event);
+
+      // Ensure event is not null before proceeding
+      if (!this.event) {
+        throw new Error("Event data is null after refreshEvent completed.");
+      }
 
       // Redirect if we're at the wrong route
       if (this.event.type === eventTypes.GROUP) {
         if (this.$route.name === "event") {
+          console.log("[Event.vue created] Redirecting from event route to group route.");
           this.$router.replace({
             name: "group",
             params: {
@@ -1357,9 +1367,12 @@ export default {
               contactsPayload: this.contactsPayload,
             },
           })
+          // Stop further execution in this hook after redirect
+          return;
         }
       } else {
         if (this.$route.name === "group") {
+          console.log("[Event.vue created] Redirecting from group route to event route.");
           this.$router.replace({
             name: "event",
             params: {
@@ -1369,27 +1382,43 @@ export default {
               contactsPayload: this.contactsPayload,
             },
           })
+           // Stop further execution in this hook after redirect
+          return;
         }
       }
+      
+      // Set document title only if event loaded successfully
+      document.title = `${this.event.name} - Gatherly`;
+      
+      // Fetch calendar data only if event fetch succeeded
+      const promises = []
+      console.log("[Event.vue created] Fetching calendar availabilities...");
+      promises.push(this.fetchCalendarAvailabilities())
+      console.log("[Event.vue created] Fetching auth user calendar events...");
+      promises.push(this.fetchAuthUserCalendarEvents())
+
+      await Promise.allSettled(promises);
+      console.log("[Event.vue created] Calendar fetches completed.");
+
     } catch (err) {
-      switch (err.error) {
-        case errors.EventNotFound:
-          this.showError("The specified event does not exist!")
-          this.$router.replace({ name: "home" })
-          return
+      console.error("[Event.vue created] Error during initial data fetch or processing:", err);
+      // Handle specific errors like EventNotFound
+      if (err && err.error === errors.EventNotFound) {
+        this.showError("The specified event does not exist!")
+        console.log("[Event.vue created] Event not found, redirecting to home.");
+        this.$router.replace({ name: "home" })
+      } else {
+        // Show a generic error for other fetch failures
+        this.showError("Failed to load event details. Please try refreshing the page.");
       }
+      // Ensure loading is stopped even if there's an error
+      this.loading = false;
+      return; // Stop execution if initial fetch failed
     }
-
-    const promises = []
-    promises.push(this.fetchCalendarAvailabilities())
-    promises.push(this.fetchAuthUserCalendarEvents())
-
-    this.loading = true
-    Promise.allSettled(promises).then(() => {
-      this.loading = false
-    })
-
-    document.title = `${this.event.name} - Gatherly`
+    
+    // Set loading to false only if everything succeeded
+    this.loading = false;
+    console.log("[Event.vue created] Initial data fetch successful, loading complete.");
   },
 
   beforeDestroy() {

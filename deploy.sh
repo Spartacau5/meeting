@@ -1,4 +1,4 @@
-hy #!/bin/bash
+#!/bin/bash
 set -e
 
 echo "=== BetterMeet Firebase Deployment Script ==="
@@ -123,6 +123,26 @@ cat > firebase.json << EOL
       {
         "source": "**",
         "destination": "/index.html"
+      }
+    ],
+    "headers": [
+      {
+        "source": "**/*.@(js|css)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "max-age=31536000"
+          }
+        ]
+      },
+      {
+        "source": "**/*.@(jpg|jpeg|png|gif|webp|svg|ico)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "max-age=31536000"
+          }
+        ]
       }
     ]
   }

@@ -125,7 +125,7 @@
           <v-expand-transition>
             <div v-if="selectedDateOption === dateOptions.SPECIFIC || daysOnly">
               <div class="tw-mb-2 tw-text-xs tw-text-dark-gray">
-                Drag to select multiple dates
+                {{ isMobile ? 'Tap to select dates' : 'Drag to select multiple dates' }}
               </div>
               <v-input
                 v-model="selectedDays"
@@ -532,6 +532,9 @@ export default {
     isPhone() {
       return isPhone(this.$vuetify)
     },
+    isMobile() {
+      return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+    },
     guestEvent() {
       return this.event && this.event.ownerId == guestUserId
     },
@@ -851,8 +854,20 @@ export default {
             console.warn('Safety timeout triggered - navigation did not complete');
             this.loading = false;
             this.$emit("input", false);
-            // Show a message to the user
-            this.showError("Your event was created, but there was a problem navigating to it. Please check your dashboard.");
+            // Show a message to the user with a clickable link as backup
+            const eventIdToUse = window.sessionStorage.getItem('lastCreatedEventId');
+            const dashboardMessage = this.authUser ? " or check your dashboard." : ".";
+            if (eventIdToUse) {
+              const failsafeBaseUrl = `${window.location.origin}/e/`;
+              const message = `<div>Your event was created, but there was a problem navigating to it. 
+                <a href="${failsafeBaseUrl}${eventIdToUse}" style="text-decoration: underline; color: white; font-weight: bold;">
+                  Click here to open your event
+                </a>${dashboardMessage}</div>`;
+              this.$store.dispatch('showInfo', { message, html: true, timeout: 10000 });
+            } else {
+              const fallbackMessage = `Your event was created, but there was a problem navigating to it.${dashboardMessage} Please try refreshing.`;
+              this.showError(fallbackMessage);
+            }
           }
         }, 15000); // 15 second safety timeout for mobile
         
@@ -861,106 +876,74 @@ export default {
           .then(({ eventId, shortId }) => {
             const eventIdToUse = shortId ?? eventId;
             
+            // Store in session storage for recovery if navigation fails
+            try {
+              window.sessionStorage.setItem('lastCreatedEventId', eventIdToUse);
+              console.log("Stored event ID in session storage:", eventIdToUse);
+            } catch (storageErr) {
+              console.error("Failed to store event ID in session storage:", storageErr);
+            }
+            
             // Log success for debugging
             console.log(`Event created successfully with ID: ${eventIdToUse}`);
             
             // Capture analytics before navigation
             posthogPayload.eventId = eventId;
             this.$posthog?.capture("Event created", posthogPayload);
+
+            // Reset the form *before* navigation starts to avoid race conditions
+            this.$emit("input", false);
+            this.reset();
             
-            // IMPORTANT: Only reset form and loading state AFTER navigation
-            const navigateAndReset = () => {
-              // Set a flag to prevent double-navigation attempts
-              if (navigationComplete) return;
-              navigationComplete = true;
-              
-              // Clear the safety timeout since navigation succeeded
-              clearTimeout(safetyTimeout);
-              
-              // Only reset the form after we're sure navigation was triggered
+            // Set a flag to prevent double-navigation attempts
+            if (navigationComplete) return;
+            navigationComplete = true;
+            
+            // Clear the safety timeout since navigation succeeded (theoretically)
+            clearTimeout(safetyTimeout);
+            
+            // IMPORTANT: Only reset loading state AFTER navigation attempt
+            const completeNavigation = () => {
+              // Ensure loading is always turned off eventually, even if nav hangs
               setTimeout(() => {
-                this.$emit("input", false);
-                this.reset();
-                this.loading = false;
-              }, 100);
+                if (this.loading) {
+                  console.log("Resetting loading state after navigation attempt.");
+                  this.loading = false;
+                }
+              }, 500); // Reset loading after 500ms
             };
-            
-            // Detect mobile devices - more comprehensive check
-            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/.test(navigator.userAgent);
-            
-            // Special handling for iOS devices
-            const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
-            
-            // Special handling for iOS Safari
-            const isIOSSafari = isIOS && 
-                               !/(Chrome|CriOS|OPiOS)/.test(navigator.userAgent) &&
-                               /Safari/.test(navigator.userAgent);
 
-            console.log("Navigation device detection:", {
-              isMobile,
-              isIOS,
-              isIOSSafari,
-              userAgent: navigator.userAgent
-            });
-
-            // For mobile devices, use the simplest direct navigation approach
-            if (isMobile) {
-              console.log("Using mobile-specific direct navigation");
+            // Unified navigation logic using Vue Router for all devices
+            console.log("Using router navigation for all devices");
+            this.$router.push({
+              name: "event",
+              params: {
+                eventId: eventIdToUse,
+                initialTimezone: this.timezone,
+              },
+            }).then(() => {
+              console.log("Router push successful");
+              completeNavigation();
+            }).catch(err => {
+              console.error("Router navigation failed:", err);
+              // Fallback to direct URL change if router fails (might still hit server issue)
               try {
-                // On mobile, always use direct location change which is most reliable
-                // Use absolute URL to avoid any path resolution issues
-                const absoluteEventUrl = `${window.location.origin}/e/${eventIdToUse}`;
-                console.log("Navigating to absolute URL:", absoluteEventUrl);
-                
-                // Create a larger delay to ensure event is fully created and accessible
-                setTimeout(() => {
-                  // Use replace instead of href to avoid history issues
-                  window.location.replace(absoluteEventUrl);
-                  
-                  // Set a secondary fallback in case the first navigation fails
-                  setTimeout(() => {
-                    if (!navigationComplete) {
-                      console.log("Initial navigation didn't complete, trying fallback");
-                      window.location.href = absoluteEventUrl;
-                      navigateAndReset();
-                    }
-                  }, 1000);
-                  
-                  navigateAndReset();
-                }, 800); // Increased delay for mobile browsers
-              } catch (mobileNavErr) {
-                console.error("Mobile navigation failed:", mobileNavErr);
-                // Fallback to absolute URL as ultimate safety
-                window.location.replace(`${failsafeUrl}${eventIdToUse}`);
-                navigateAndReset();
+                const eventIdToUse = window.sessionStorage.getItem('lastCreatedEventId');
+                if (eventIdToUse) {
+                  const failsafeUrl = `${window.location.origin}/e/${eventIdToUse}`;
+                  console.warn("Router failed, attempting direct navigation:", failsafeUrl);
+                  window.location.href = `/e/${eventIdToUse}`; 
+                } else {
+                  throw new Error("No event ID found in session storage for fallback navigation");
+                }
+              } catch (directNavErr) {
+                console.error("Direct navigation fallback also failed:", directNavErr);
+                // Show error if everything fails
+                const dashboardMessage = this.authUser ? " Please check your dashboard or refresh." : " Please try refreshing.";
+                this.showError(`Event created, but failed to navigate automatically.${dashboardMessage}`);
               }
-              return;
-            }
-            
-            // Desktop browsers can use the router
-            try {
-              console.log("Using router navigation for desktop");
-              // First try to use router navigation (history mode)
-              this.$router.push({
-                name: "event",
-                params: {
-                  eventId: eventIdToUse,
-                  initialTimezone: this.timezone,
-                },
-              }).then(() => {
-                navigateAndReset();
-              }).catch(err => {
-                console.error("Router navigation failed:", err);
-                // Fallback to direct URL change if router fails
-                window.location.href = `/e/${eventIdToUse}`;
-                navigateAndReset();
-              });
-            } catch (err) {
-              console.error("Navigation error:", err);
-              // Fallback to direct URL change
-              window.location.href = `/e/${eventIdToUse}`;
-              navigateAndReset();
-            }
+              completeNavigation();
+            });
           })
           .catch((err) => {
             console.error("Error creating event:", err);

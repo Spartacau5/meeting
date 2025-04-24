@@ -6,9 +6,10 @@ module.exports = defineConfig({
   // pluginOptions: {
   devServer: {
     port: 8080,
-    host: 'localhost',
+    // host: 'localhost', // Let vue-cli handle host binding for 0.0.0.0
     allowedHosts: 'all',
     client: {
+      // Revert dynamic WebSocket URL back to original value
       webSocketURL: 'ws://localhost:8080/ws',
     },
     headers: {
@@ -16,6 +17,7 @@ module.exports = defineConfig({
     },
     historyApiFallback: true
   },
+  /* PWA configuration temporarily disabled for debugging navigation
   pwa: {
     name: 'BetterMeet',
     themeColor: '#4DBA87',
@@ -68,4 +70,5 @@ module.exports = defineConfig({
       ]
     }
   }
+  */
 })
